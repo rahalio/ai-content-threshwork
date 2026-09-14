@@ -1,0 +1,154 @@
+{
+  "domains": [
+    {
+      "name": "identity",
+      "enabled": true,
+      "spec_path": "identity.yaml",
+      "bundled_path": "identity.json",
+      "entity_schema_overrides": null,
+      "operation_aliases": null
+    },
+    {
+      "name": "queues",
+      "enabled": true,
+      "spec_path": "queues.yaml",
+      "bundled_path": "queues.json",
+      "entity_schema_overrides": null,
+      "operation_aliases": null
+    },
+    {
+      "name": "routing",
+      "enabled": true,
+      "spec_path": "routing.yaml",
+      "bundled_path": "routing.json",
+      "entity_schema_overrides": null,
+      "operation_aliases": null
+    },
+    {
+      "name": "vendors",
+      "enabled": true,
+      "spec_path": "vendors.yaml",
+      "bundled_path": "vendors.json",
+      "entity_schema_overrides": null,
+      "operation_aliases": null
+    },
+    {
+      "name": "portfolio",
+      "enabled": true,
+      "spec_path": "portfolio.yaml",
+      "bundled_path": "portfolio.json",
+      "entity_schema_overrides": null,
+      "operation_aliases": null
+    }
+  ],
+  "paths": {
+    "project_root": "/Users/nrahal/Library/CloudStorage/OneDrive-fazeZERO/02_Knowledge_Base/03-xZERO_MEDIA/ai/ai-usecases/products/ai-in-content/accenture-ai-in-content-services",
+    "openapi_dir": "/Users/nrahal/Library/CloudStorage/OneDrive-fazeZERO/02_Knowledge_Base/03-xZERO_MEDIA/ai/ai-usecases/products/ai-in-content/accenture-ai-in-content-services/packages/openapi-core/src",
+    "bundled_dir": "/Users/nrahal/Library/CloudStorage/OneDrive-fazeZERO/02_Knowledge_Base/03-xZERO_MEDIA/ai/ai-usecases/products/ai-in-content/accenture-ai-in-content-services/packages/openapi-core/src/.bundled"
+  },
+  "package_scope": "@ddd",
+  "layers": {
+    "core": {
+      "entities": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "types": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "repositories": {
+        "enabled": true,
+        "include_js_docs": true
+      }
+    },
+    "services": {
+      "usecases": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "ports": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "dtos": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "policies": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "errors": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "handlers": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "port_style": "method_based"
+    },
+    "api_server": {
+      "routes": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "openapi_types": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "zod_schemas": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "dependencies": {
+        "enabled": true,
+        "include_js_docs": true
+      }
+    },
+    "adapters": {
+      "dynamodb_repositories": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "port_adapters": {
+        "enabled": true,
+        "include_js_docs": true
+      }
+    },
+    "tests": {
+      "tests": {
+        "enabled": true,
+        "include_js_docs": true
+      }
+    },
+    "postman": {
+      "collection": {
+        "enabled": true,
+        "include_js_docs": true
+      }
+    },
+    "webapp": {
+      "services": {
+        "enabled": true,
+        "include_js_docs": true
+      },
+      "features": {
+        "enabled": true,
+        "include_js_docs": true
+      }
+    }
+  },
+  "pipeline": {
+    "clean": true,
+    "validate": true,
+    "skip_build": true,
+    "parallel": false,
+    "fail_fast": false,
+    "layers": null
+  },
+  "log_level": "info",
+  "verbose": false,
+  "version": "2.0.0"
+}

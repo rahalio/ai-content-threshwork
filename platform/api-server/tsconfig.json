@@ -1,0 +1,32 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "rootDir": "../..",
+    "outDir": "dist",
+    "noEmit": true,
+    "declaration": false,
+    "strict": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@ddd/core": ["../../packages/core/src/index.ts"],
+      "@ddd/core/*": ["../../packages/core/src/*"],
+      "@ddd/services": ["../services/src/index.ts"],
+      "@ddd/services/*": ["../services/src/*"],
+      "@ddd/adapters": ["../adapters/src/index.ts"],
+      "@ddd/adapters/*": ["../adapters/src/*"],
+      "@services/*": ["../services/src/*"],
+      "@adapters/*": ["../adapters/src/*"],
+      "@api/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
+}

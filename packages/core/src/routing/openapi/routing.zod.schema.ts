@@ -1,0 +1,1714 @@
+import { makeApi, Zodios, type ZodiosOptions } from '@zodios/core';
+import { z } from 'zod';
+
+const submitWorkItem_Body = z
+  .object({
+    queueId: z.string(),
+    externalReference: z.string(),
+    contentType: z.enum(['text', 'image', 'video', 'audio', 'asset_bundle']),
+    origin: z
+      .enum([
+        'platform_ingest',
+        'user_report',
+        'trusted_flagger',
+        'regulator_notice',
+        'client_pipeline',
+      ])
+      .optional(),
+    assetId: z.string().optional(),
+    territory: z.string().optional(),
+    clockType: z
+      .enum([
+        'statutory_removal',
+        'localisation_sla',
+        'accessibility_remediation',
+        'client_contract',
+      ])
+      .optional(),
+    clockDueAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .passthrough();
+const recordHumanReview_Body = z
+  .object({
+    decision: z.enum([
+      'approve',
+      'remove',
+      'restrict',
+      'label',
+      'tag',
+      'escalate',
+      'no_action',
+    ]),
+    reviewKind: z
+      .enum([
+        'threshold_escalation',
+        'calibration_sample',
+        'appeal_adjudication',
+        'spot_check',
+      ])
+      .optional(),
+    agreedWithMachine: z.boolean().optional(),
+    defectClass: z.string().optional(),
+    rationale: z.string().optional(),
+    handlingTimeSeconds: z.number().int().optional(),
+  })
+  .passthrough();
+const openAppeal_Body = z
+  .object({
+    workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+    raisedBy: z
+      .enum(['end_user', 'enterprise_client', 'trusted_flagger', 'internal'])
+      .optional(),
+    grounds: z.string(),
+    evidence: z.string().optional(),
+  })
+  .passthrough();
+const resolveAppeal_Body = z
+  .object({
+    outcome: z.enum(['upheld', 'rejected']),
+    rationale: z.string(),
+    feedsCalibrationSet: z.boolean().optional().default(true),
+  })
+  .passthrough();
+const WorkItemState = z.enum([
+  'received',
+  'rights_blocked',
+  'routed',
+  'machine_final',
+  'awaiting_human',
+  'human_final',
+  'appealed',
+  'closed',
+]);
+const Problem = z
+  .object({
+    type: z.string().url(),
+    title: z.string(),
+    status: z.number().int(),
+    detail: z.string(),
+    instance: z.string().url(),
+    code: z.string(),
+  })
+  .partial()
+  .passthrough();
+const WorkItemId = z.string();
+const ContentType = z.enum(['text', 'image', 'video', 'audio', 'asset_bundle']);
+const WorkItemOrigin = z.enum([
+  'platform_ingest',
+  'user_report',
+  'trusted_flagger',
+  'regulator_notice',
+  'client_pipeline',
+]);
+const WorkItem = z
+  .object({
+    id: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+    queueId: z.string(),
+    externalReference: z.string().optional(),
+    contentType: z
+      .enum(['text', 'image', 'video', 'audio', 'asset_bundle'])
+      .optional(),
+    origin: z
+      .enum([
+        'platform_ingest',
+        'user_report',
+        'trusted_flagger',
+        'regulator_notice',
+        'client_pipeline',
+      ])
+      .optional(),
+    state: z.enum([
+      'received',
+      'rights_blocked',
+      'routed',
+      'machine_final',
+      'awaiting_human',
+      'human_final',
+      'appealed',
+      'closed',
+    ]),
+    graphicContent: z.boolean().optional(),
+    territory: z.string().optional(),
+    receivedAt: z.string().datetime({ offset: true }),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const WorkItemListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          id: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+          queueId: z.string(),
+          externalReference: z.string().optional(),
+          contentType: z
+            .enum(['text', 'image', 'video', 'audio', 'asset_bundle'])
+            .optional(),
+          origin: z
+            .enum([
+              'platform_ingest',
+              'user_report',
+              'trusted_flagger',
+              'regulator_notice',
+              'client_pipeline',
+            ])
+            .optional(),
+          state: z.enum([
+            'received',
+            'rights_blocked',
+            'routed',
+            'machine_final',
+            'awaiting_human',
+            'human_final',
+            'appealed',
+            'closed',
+          ]),
+          graphicContent: z.boolean().optional(),
+          territory: z.string().optional(),
+          receivedAt: z.string().datetime({ offset: true }),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const ResponseMeta = z
+  .object({
+    requestId: z.string().uuid(),
+    correlationId: z.string(),
+    generatedAt: z.string().datetime({ offset: true }),
+  })
+  .partial()
+  .passthrough();
+const WorkItemListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              id: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+              queueId: z.string(),
+              externalReference: z.string().optional(),
+              contentType: z
+                .enum(['text', 'image', 'video', 'audio', 'asset_bundle'])
+                .optional(),
+              origin: z
+                .enum([
+                  'platform_ingest',
+                  'user_report',
+                  'trusted_flagger',
+                  'regulator_notice',
+                  'client_pipeline',
+                ])
+                .optional(),
+              state: z.enum([
+                'received',
+                'rights_blocked',
+                'routed',
+                'machine_final',
+                'awaiting_human',
+                'human_final',
+                'appealed',
+                'closed',
+              ]),
+              graphicContent: z.boolean().optional(),
+              territory: z.string().optional(),
+              receivedAt: z.string().datetime({ offset: true }),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const ClockType = z.enum([
+  'statutory_removal',
+  'localisation_sla',
+  'accessibility_remediation',
+  'client_contract',
+]);
+const WorkItemCreate = z
+  .object({
+    queueId: z.string(),
+    externalReference: z.string(),
+    contentType: z.enum(['text', 'image', 'video', 'audio', 'asset_bundle']),
+    origin: z
+      .enum([
+        'platform_ingest',
+        'user_report',
+        'trusted_flagger',
+        'regulator_notice',
+        'client_pipeline',
+      ])
+      .optional(),
+    assetId: z.string().optional(),
+    territory: z.string().optional(),
+    clockType: z
+      .enum([
+        'statutory_removal',
+        'localisation_sla',
+        'accessibility_remediation',
+        'client_contract',
+      ])
+      .optional(),
+    clockDueAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .passthrough();
+const WorkItemResponse = z
+  .object({
+    data: z
+      .object({
+        id: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+        queueId: z.string(),
+        externalReference: z.string().optional(),
+        contentType: z
+          .enum(['text', 'image', 'video', 'audio', 'asset_bundle'])
+          .optional(),
+        origin: z
+          .enum([
+            'platform_ingest',
+            'user_report',
+            'trusted_flagger',
+            'regulator_notice',
+            'client_pipeline',
+          ])
+          .optional(),
+        state: z.enum([
+          'received',
+          'rights_blocked',
+          'routed',
+          'machine_final',
+          'awaiting_human',
+          'human_final',
+          'appealed',
+          'closed',
+        ]),
+        graphicContent: z.boolean().optional(),
+        territory: z.string().optional(),
+        receivedAt: z.string().datetime({ offset: true }),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const DecisionAction = z.enum([
+  'approve',
+  'remove',
+  'restrict',
+  'label',
+  'tag',
+  'escalate',
+  'no_action',
+]);
+const RoutingDecision = z
+  .object({
+    workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+    lane: z.enum([
+      'machine_final',
+      'machine_proposes_human_disposes',
+      'human_only',
+      'rights_blocked',
+    ]),
+    vendorId: z.string().optional(),
+    vendorConfidence: z.number().optional(),
+    thresholdApplied: z.number().optional(),
+    proposedDecision: z
+      .enum([
+        'approve',
+        'remove',
+        'restrict',
+        'label',
+        'tag',
+        'escalate',
+        'no_action',
+      ])
+      .optional(),
+    evidence: z.record(z.string()).optional(),
+    processingTermsId: z.string().optional(),
+    decidedAt: z.string().datetime({ offset: true }),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const RoutingDecisionResponse = z
+  .object({
+    data: z
+      .object({
+        workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+        lane: z.enum([
+          'machine_final',
+          'machine_proposes_human_disposes',
+          'human_only',
+          'rights_blocked',
+        ]),
+        vendorId: z.string().optional(),
+        vendorConfidence: z.number().optional(),
+        thresholdApplied: z.number().optional(),
+        proposedDecision: z
+          .enum([
+            'approve',
+            'remove',
+            'restrict',
+            'label',
+            'tag',
+            'escalate',
+            'no_action',
+          ])
+          .optional(),
+        evidence: z.record(z.string()).optional(),
+        processingTermsId: z.string().optional(),
+        decidedAt: z.string().datetime({ offset: true }),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const RightsRecord = z
+  .object({
+    assetId: z.string(),
+    status: z.enum([
+      'cleared',
+      'expired',
+      'unverified',
+      'restricted_territory',
+      'pending_renewal',
+    ]),
+    licenceReference: z.string().optional(),
+    licensor: z.string().optional(),
+    expiresAt: z.string().datetime({ offset: true }).optional(),
+    permittedTerritories: z.array(z.string()).optional(),
+    blocksPublication: z.boolean().optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const RightsRecordResponse = z
+  .object({
+    data: z
+      .object({
+        assetId: z.string(),
+        status: z.enum([
+          'cleared',
+          'expired',
+          'unverified',
+          'restricted_territory',
+          'pending_renewal',
+        ]),
+        licenceReference: z.string().optional(),
+        licensor: z.string().optional(),
+        expiresAt: z.string().datetime({ offset: true }).optional(),
+        permittedTerritories: z.array(z.string()).optional(),
+        blocksPublication: z.boolean().optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const HumanReviewCreate = z
+  .object({
+    decision: z.enum([
+      'approve',
+      'remove',
+      'restrict',
+      'label',
+      'tag',
+      'escalate',
+      'no_action',
+    ]),
+    reviewKind: z
+      .enum([
+        'threshold_escalation',
+        'calibration_sample',
+        'appeal_adjudication',
+        'spot_check',
+      ])
+      .optional(),
+    agreedWithMachine: z.boolean().optional(),
+    defectClass: z.string().optional(),
+    rationale: z.string().optional(),
+    handlingTimeSeconds: z.number().int().optional(),
+  })
+  .passthrough();
+const ReviewId = z.string();
+const HumanReview = z
+  .object({
+    id: z.string().regex(/^hrv_[0-9A-HJKMNP-TV-Z]{26}$/),
+    workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+    reviewerId: z.string(),
+    reviewKind: z
+      .enum([
+        'threshold_escalation',
+        'calibration_sample',
+        'appeal_adjudication',
+        'spot_check',
+      ])
+      .optional(),
+    decision: z.enum([
+      'approve',
+      'remove',
+      'restrict',
+      'label',
+      'tag',
+      'escalate',
+      'no_action',
+    ]),
+    agreedWithMachine: z.boolean().optional(),
+    defectClass: z.string().optional(),
+    handlingTimeSeconds: z.number().int().optional(),
+    decidedAt: z.string().datetime({ offset: true }),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const HumanReviewResponse = z
+  .object({
+    data: z
+      .object({
+        id: z.string().regex(/^hrv_[0-9A-HJKMNP-TV-Z]{26}$/),
+        workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+        reviewerId: z.string(),
+        reviewKind: z
+          .enum([
+            'threshold_escalation',
+            'calibration_sample',
+            'appeal_adjudication',
+            'spot_check',
+          ])
+          .optional(),
+        decision: z.enum([
+          'approve',
+          'remove',
+          'restrict',
+          'label',
+          'tag',
+          'escalate',
+          'no_action',
+        ]),
+        agreedWithMachine: z.boolean().optional(),
+        defectClass: z.string().optional(),
+        handlingTimeSeconds: z.number().int().optional(),
+        decidedAt: z.string().datetime({ offset: true }),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const HumanReviewListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          id: z.string().regex(/^hrv_[0-9A-HJKMNP-TV-Z]{26}$/),
+          workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+          reviewerId: z.string(),
+          reviewKind: z
+            .enum([
+              'threshold_escalation',
+              'calibration_sample',
+              'appeal_adjudication',
+              'spot_check',
+            ])
+            .optional(),
+          decision: z.enum([
+            'approve',
+            'remove',
+            'restrict',
+            'label',
+            'tag',
+            'escalate',
+            'no_action',
+          ]),
+          agreedWithMachine: z.boolean().optional(),
+          defectClass: z.string().optional(),
+          handlingTimeSeconds: z.number().int().optional(),
+          decidedAt: z.string().datetime({ offset: true }),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const HumanReviewListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              id: z.string().regex(/^hrv_[0-9A-HJKMNP-TV-Z]{26}$/),
+              workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+              reviewerId: z.string(),
+              reviewKind: z
+                .enum([
+                  'threshold_escalation',
+                  'calibration_sample',
+                  'appeal_adjudication',
+                  'spot_check',
+                ])
+                .optional(),
+              decision: z.enum([
+                'approve',
+                'remove',
+                'restrict',
+                'label',
+                'tag',
+                'escalate',
+                'no_action',
+              ]),
+              agreedWithMachine: z.boolean().optional(),
+              defectClass: z.string().optional(),
+              handlingTimeSeconds: z.number().int().optional(),
+              decidedAt: z.string().datetime({ offset: true }),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const AppealId = z.string();
+const Appeal = z
+  .object({
+    id: z.string().regex(/^apl_[0-9A-HJKMNP-TV-Z]{26}$/),
+    workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+    raisedBy: z
+      .enum(['end_user', 'enterprise_client', 'trusted_flagger', 'internal'])
+      .optional(),
+    originalDecisionBy: z.enum(['machine', 'human']).optional(),
+    originalReviewerId: z.string().optional(),
+    assignedReviewerId: z.string().optional(),
+    status: z.enum(['pending', 'upheld', 'rejected', 'expired']),
+    dueAt: z.string().datetime({ offset: true }).optional(),
+    rationale: z.string().optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const AppealListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          id: z.string().regex(/^apl_[0-9A-HJKMNP-TV-Z]{26}$/),
+          workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+          raisedBy: z
+            .enum([
+              'end_user',
+              'enterprise_client',
+              'trusted_flagger',
+              'internal',
+            ])
+            .optional(),
+          originalDecisionBy: z.enum(['machine', 'human']).optional(),
+          originalReviewerId: z.string().optional(),
+          assignedReviewerId: z.string().optional(),
+          status: z.enum(['pending', 'upheld', 'rejected', 'expired']),
+          dueAt: z.string().datetime({ offset: true }).optional(),
+          rationale: z.string().optional(),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const AppealListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              id: z.string().regex(/^apl_[0-9A-HJKMNP-TV-Z]{26}$/),
+              workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+              raisedBy: z
+                .enum([
+                  'end_user',
+                  'enterprise_client',
+                  'trusted_flagger',
+                  'internal',
+                ])
+                .optional(),
+              originalDecisionBy: z.enum(['machine', 'human']).optional(),
+              originalReviewerId: z.string().optional(),
+              assignedReviewerId: z.string().optional(),
+              status: z.enum(['pending', 'upheld', 'rejected', 'expired']),
+              dueAt: z.string().datetime({ offset: true }).optional(),
+              rationale: z.string().optional(),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const AppealCreate = z
+  .object({
+    workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+    raisedBy: z
+      .enum(['end_user', 'enterprise_client', 'trusted_flagger', 'internal'])
+      .optional(),
+    grounds: z.string(),
+    evidence: z.string().optional(),
+  })
+  .passthrough();
+const AppealResponse = z
+  .object({
+    data: z
+      .object({
+        id: z.string().regex(/^apl_[0-9A-HJKMNP-TV-Z]{26}$/),
+        workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+        raisedBy: z
+          .enum([
+            'end_user',
+            'enterprise_client',
+            'trusted_flagger',
+            'internal',
+          ])
+          .optional(),
+        originalDecisionBy: z.enum(['machine', 'human']).optional(),
+        originalReviewerId: z.string().optional(),
+        assignedReviewerId: z.string().optional(),
+        status: z.enum(['pending', 'upheld', 'rejected', 'expired']),
+        dueAt: z.string().datetime({ offset: true }).optional(),
+        rationale: z.string().optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const AppealResolveRequest = z
+  .object({
+    outcome: z.enum(['upheld', 'rejected']),
+    rationale: z.string(),
+    feedsCalibrationSet: z.boolean().optional().default(true),
+  })
+  .passthrough();
+const ClockId = z.string();
+const ResponseClock = z
+  .object({
+    id: z.string().regex(/^clk_[0-9A-HJKMNP-TV-Z]{26}$/),
+    workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+    queueId: z.string().optional(),
+    clockType: z.enum([
+      'statutory_removal',
+      'localisation_sla',
+      'accessibility_remediation',
+      'client_contract',
+    ]),
+    jurisdiction: z.string().optional(),
+    startedAt: z.string().datetime({ offset: true }).optional(),
+    dueAt: z.string().datetime({ offset: true }),
+    status: z.enum(['running', 'at_risk', 'met', 'breached']),
+    preemptedAt: z.string().datetime({ offset: true }).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const ResponseClockListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          id: z.string().regex(/^clk_[0-9A-HJKMNP-TV-Z]{26}$/),
+          workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+          queueId: z.string().optional(),
+          clockType: z.enum([
+            'statutory_removal',
+            'localisation_sla',
+            'accessibility_remediation',
+            'client_contract',
+          ]),
+          jurisdiction: z.string().optional(),
+          startedAt: z.string().datetime({ offset: true }).optional(),
+          dueAt: z.string().datetime({ offset: true }),
+          status: z.enum(['running', 'at_risk', 'met', 'breached']),
+          preemptedAt: z.string().datetime({ offset: true }).optional(),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const ResponseClockListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              id: z.string().regex(/^clk_[0-9A-HJKMNP-TV-Z]{26}$/),
+              workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+              queueId: z.string().optional(),
+              clockType: z.enum([
+                'statutory_removal',
+                'localisation_sla',
+                'accessibility_remediation',
+                'client_contract',
+              ]),
+              jurisdiction: z.string().optional(),
+              startedAt: z.string().datetime({ offset: true }).optional(),
+              dueAt: z.string().datetime({ offset: true }),
+              status: z.enum(['running', 'at_risk', 'met', 'breached']),
+              preemptedAt: z.string().datetime({ offset: true }).optional(),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const ResponseClockResponse = z
+  .object({
+    data: z
+      .object({
+        id: z.string().regex(/^clk_[0-9A-HJKMNP-TV-Z]{26}$/),
+        workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+        queueId: z.string().optional(),
+        clockType: z.enum([
+          'statutory_removal',
+          'localisation_sla',
+          'accessibility_remediation',
+          'client_contract',
+        ]),
+        jurisdiction: z.string().optional(),
+        startedAt: z.string().datetime({ offset: true }).optional(),
+        dueAt: z.string().datetime({ offset: true }),
+        status: z.enum(['running', 'at_risk', 'met', 'breached']),
+        preemptedAt: z.string().datetime({ offset: true }).optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+
+export const schemas: any = {
+  submitWorkItem_Body,
+  recordHumanReview_Body,
+  openAppeal_Body,
+  resolveAppeal_Body,
+  WorkItemState,
+  Problem,
+  WorkItemId,
+  ContentType,
+  WorkItemOrigin,
+  WorkItem,
+  WorkItemListData,
+  ResponseMeta,
+  WorkItemListResponse,
+  ClockType,
+  WorkItemCreate,
+  WorkItemResponse,
+  DecisionAction,
+  RoutingDecision,
+  RoutingDecisionResponse,
+  RightsRecord,
+  RightsRecordResponse,
+  HumanReviewCreate,
+  ReviewId,
+  HumanReview,
+  HumanReviewResponse,
+  HumanReviewListData,
+  HumanReviewListResponse,
+  AppealId,
+  Appeal,
+  AppealListData,
+  AppealListResponse,
+  AppealCreate,
+  AppealResponse,
+  AppealResolveRequest,
+  ClockId,
+  ResponseClock,
+  ResponseClockListData,
+  ResponseClockListResponse,
+  ResponseClockResponse,
+};
+
+const endpoints = makeApi([
+  {
+    method: 'get',
+    path: '/v1/appeals',
+    alias: 'listAppeals',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(200).optional().default(50),
+      },
+      {
+        name: 'outcome',
+        type: 'Query',
+        schema: z.enum(['pending', 'upheld', 'rejected', 'expired']).optional(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string().regex(/^apl_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  raisedBy: z
+                    .enum([
+                      'end_user',
+                      'enterprise_client',
+                      'trusted_flagger',
+                      'internal',
+                    ])
+                    .optional(),
+                  originalDecisionBy: z.enum(['machine', 'human']).optional(),
+                  originalReviewerId: z.string().optional(),
+                  assignedReviewerId: z.string().optional(),
+                  status: z.enum(['pending', 'upheld', 'rejected', 'expired']),
+                  dueAt: z.string().datetime({ offset: true }).optional(),
+                  rationale: z.string().optional(),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'post',
+    path: '/v1/appeals',
+    alias: 'openAppeal',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: openAppeal_Body,
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string().regex(/^apl_[0-9A-HJKMNP-TV-Z]{26}$/),
+            workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+            raisedBy: z
+              .enum([
+                'end_user',
+                'enterprise_client',
+                'trusted_flagger',
+                'internal',
+              ])
+              .optional(),
+            originalDecisionBy: z.enum(['machine', 'human']).optional(),
+            originalReviewerId: z.string().optional(),
+            assignedReviewerId: z.string().optional(),
+            status: z.enum(['pending', 'upheld', 'rejected', 'expired']),
+            dueAt: z.string().datetime({ offset: true }).optional(),
+            rationale: z.string().optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'post',
+    path: '/v1/appeals/:appealId/resolution',
+    alias: 'resolveAppeal',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: resolveAppeal_Body,
+      },
+      {
+        name: 'appealId',
+        type: 'Path',
+        schema: z.string().regex(/^apl_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string().regex(/^apl_[0-9A-HJKMNP-TV-Z]{26}$/),
+            workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+            raisedBy: z
+              .enum([
+                'end_user',
+                'enterprise_client',
+                'trusted_flagger',
+                'internal',
+              ])
+              .optional(),
+            originalDecisionBy: z.enum(['machine', 'human']).optional(),
+            originalReviewerId: z.string().optional(),
+            assignedReviewerId: z.string().optional(),
+            status: z.enum(['pending', 'upheld', 'rejected', 'expired']),
+            dueAt: z.string().datetime({ offset: true }).optional(),
+            rationale: z.string().optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 403,
+        description: `Authenticated but not permitted`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/v1/response-clocks',
+    alias: 'listResponseClocks',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(200).optional().default(50),
+      },
+      {
+        name: 'status',
+        type: 'Query',
+        schema: z.enum(['running', 'at_risk', 'met', 'breached']).optional(),
+      },
+      {
+        name: 'clockType',
+        type: 'Query',
+        schema: z
+          .enum([
+            'statutory_removal',
+            'localisation_sla',
+            'accessibility_remediation',
+            'client_contract',
+          ])
+          .optional(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string().regex(/^clk_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  queueId: z.string().optional(),
+                  clockType: z.enum([
+                    'statutory_removal',
+                    'localisation_sla',
+                    'accessibility_remediation',
+                    'client_contract',
+                  ]),
+                  jurisdiction: z.string().optional(),
+                  startedAt: z.string().datetime({ offset: true }).optional(),
+                  dueAt: z.string().datetime({ offset: true }),
+                  status: z.enum(['running', 'at_risk', 'met', 'breached']),
+                  preemptedAt: z.string().datetime({ offset: true }).optional(),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'post',
+    path: '/v1/response-clocks/:clockId/preempt',
+    alias: 'preemptResponseClock',
+    description: `Promote the underlying item ahead of lower-priority work before breach.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'clockId',
+        type: 'Path',
+        schema: z.string().regex(/^clk_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string().regex(/^clk_[0-9A-HJKMNP-TV-Z]{26}$/),
+            workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+            queueId: z.string().optional(),
+            clockType: z.enum([
+              'statutory_removal',
+              'localisation_sla',
+              'accessibility_remediation',
+              'client_contract',
+            ]),
+            jurisdiction: z.string().optional(),
+            startedAt: z.string().datetime({ offset: true }).optional(),
+            dueAt: z.string().datetime({ offset: true }),
+            status: z.enum(['running', 'at_risk', 'met', 'breached']),
+            preemptedAt: z.string().datetime({ offset: true }).optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'get',
+    path: '/v1/review/calibration-samples',
+    alias: 'listCalibrationSamples',
+    description: `Machine-final decisions drawn for sampled re-review.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(200).optional().default(50),
+      },
+      {
+        name: 'queueId',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string().regex(/^hrv_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  reviewerId: z.string(),
+                  reviewKind: z
+                    .enum([
+                      'threshold_escalation',
+                      'calibration_sample',
+                      'appeal_adjudication',
+                      'spot_check',
+                    ])
+                    .optional(),
+                  decision: z.enum([
+                    'approve',
+                    'remove',
+                    'restrict',
+                    'label',
+                    'tag',
+                    'escalate',
+                    'no_action',
+                  ]),
+                  agreedWithMachine: z.boolean().optional(),
+                  defectClass: z.string().optional(),
+                  handlingTimeSeconds: z.number().int().optional(),
+                  decidedAt: z.string().datetime({ offset: true }),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'get',
+    path: '/v1/work-items',
+    alias: 'listWorkItems',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(200).optional().default(50),
+      },
+      {
+        name: 'queueId',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'state',
+        type: 'Query',
+        schema: z
+          .enum([
+            'received',
+            'rights_blocked',
+            'routed',
+            'machine_final',
+            'awaiting_human',
+            'human_final',
+            'appealed',
+            'closed',
+          ])
+          .optional(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  queueId: z.string(),
+                  externalReference: z.string().optional(),
+                  contentType: z
+                    .enum(['text', 'image', 'video', 'audio', 'asset_bundle'])
+                    .optional(),
+                  origin: z
+                    .enum([
+                      'platform_ingest',
+                      'user_report',
+                      'trusted_flagger',
+                      'regulator_notice',
+                      'client_pipeline',
+                    ])
+                    .optional(),
+                  state: z.enum([
+                    'received',
+                    'rights_blocked',
+                    'routed',
+                    'machine_final',
+                    'awaiting_human',
+                    'human_final',
+                    'appealed',
+                    'closed',
+                  ]),
+                  graphicContent: z.boolean().optional(),
+                  territory: z.string().optional(),
+                  receivedAt: z.string().datetime({ offset: true }),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'post',
+    path: '/v1/work-items',
+    alias: 'submitWorkItem',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: submitWorkItem_Body,
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+            queueId: z.string(),
+            externalReference: z.string().optional(),
+            contentType: z
+              .enum(['text', 'image', 'video', 'audio', 'asset_bundle'])
+              .optional(),
+            origin: z
+              .enum([
+                'platform_ingest',
+                'user_report',
+                'trusted_flagger',
+                'regulator_notice',
+                'client_pipeline',
+              ])
+              .optional(),
+            state: z.enum([
+              'received',
+              'rights_blocked',
+              'routed',
+              'machine_final',
+              'awaiting_human',
+              'human_final',
+              'appealed',
+              'closed',
+            ]),
+            graphicContent: z.boolean().optional(),
+            territory: z.string().optional(),
+            receivedAt: z.string().datetime({ offset: true }),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 409,
+        description: `Idempotency key reuse with different body, or state conflict`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/v1/work-items/:workItemId/review',
+    alias: 'recordHumanReview',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: recordHumanReview_Body,
+      },
+      {
+        name: 'workItemId',
+        type: 'Path',
+        schema: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string().regex(/^hrv_[0-9A-HJKMNP-TV-Z]{26}$/),
+            workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+            reviewerId: z.string(),
+            reviewKind: z
+              .enum([
+                'threshold_escalation',
+                'calibration_sample',
+                'appeal_adjudication',
+                'spot_check',
+              ])
+              .optional(),
+            decision: z.enum([
+              'approve',
+              'remove',
+              'restrict',
+              'label',
+              'tag',
+              'escalate',
+              'no_action',
+            ]),
+            agreedWithMachine: z.boolean().optional(),
+            defectClass: z.string().optional(),
+            handlingTimeSeconds: z.number().int().optional(),
+            decidedAt: z.string().datetime({ offset: true }),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 422,
+        description: `Semantically invalid request (e.g. PACK_EMPTY)`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/v1/work-items/:workItemId/rights',
+    alias: 'getRightsRecord',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'workItemId',
+        type: 'Path',
+        schema: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            assetId: z.string(),
+            status: z.enum([
+              'cleared',
+              'expired',
+              'unverified',
+              'restricted_territory',
+              'pending_renewal',
+            ]),
+            licenceReference: z.string().optional(),
+            licensor: z.string().optional(),
+            expiresAt: z.string().datetime({ offset: true }).optional(),
+            permittedTerritories: z.array(z.string()).optional(),
+            blocksPublication: z.boolean().optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'get',
+    path: '/v1/work-items/:workItemId/routing',
+    alias: 'getRoutingDecision',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'workItemId',
+        type: 'Path',
+        schema: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            workItemId: z.string().regex(/^wit_[0-9A-HJKMNP-TV-Z]{26}$/),
+            lane: z.enum([
+              'machine_final',
+              'machine_proposes_human_disposes',
+              'human_only',
+              'rights_blocked',
+            ]),
+            vendorId: z.string().optional(),
+            vendorConfidence: z.number().optional(),
+            thresholdApplied: z.number().optional(),
+            proposedDecision: z
+              .enum([
+                'approve',
+                'remove',
+                'restrict',
+                'label',
+                'tag',
+                'escalate',
+                'no_action',
+              ])
+              .optional(),
+            evidence: z.record(z.string()).optional(),
+            processingTermsId: z.string().optional(),
+            decidedAt: z.string().datetime({ offset: true }),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 404,
+        description: `Resource not found`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+]);
+
+export const api: any = new Zodios(
+  'https://api.ddd-codegen-starter.local/v1',
+  endpoints
+);
+
+export function createApiClient(baseUrl: string, options?: ZodiosOptions): any {
+  return new Zodios(baseUrl, endpoints, options);
+}

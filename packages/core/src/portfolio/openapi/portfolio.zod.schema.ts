@@ -1,0 +1,878 @@
+import { makeApi, Zodios, type ZodiosOptions } from '@zodios/core';
+import { z } from 'zod';
+
+const rescoreRoadmap_Body = z
+  .object({
+    trigger: z.enum([
+      'scheduled',
+      'regulatory_change',
+      'volume_shift',
+      'vendor_capability_change',
+      'incident',
+      'sponsor_request',
+    ]),
+    note: z.string().optional(),
+  })
+  .passthrough();
+const Problem = z
+  .object({
+    type: z.string().url(),
+    title: z.string(),
+    status: z.number().int(),
+    detail: z.string(),
+    instance: z.string().url(),
+    code: z.string(),
+  })
+  .partial()
+  .passthrough();
+const Currency = z.string();
+const Money = z
+  .object({
+    amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+    currency: z
+      .string()
+      .min(3)
+      .max(3)
+      .regex(/^[A-Z]{3}$/),
+  })
+  .passthrough();
+const BenefitRecord = z
+  .object({
+    queueId: z.string(),
+    period: z.string(),
+    businessCaseReference: z.string().optional(),
+    promisedDeflectionRate: z.number().optional(),
+    realisedDeflectionRate: z.number().optional(),
+    promisedCostPerItem: z
+      .object({
+        amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+        currency: z
+          .string()
+          .min(3)
+          .max(3)
+          .regex(/^[A-Z]{3}$/),
+      })
+      .passthrough()
+      .optional(),
+    realisedCostPerItem: z
+      .object({
+        amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+        currency: z
+          .string()
+          .min(3)
+          .max(3)
+          .regex(/^[A-Z]{3}$/),
+      })
+      .passthrough()
+      .optional(),
+    vendorSpend: z
+      .object({
+        amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+        currency: z
+          .string()
+          .min(3)
+          .max(3)
+          .regex(/^[A-Z]{3}$/),
+      })
+      .passthrough()
+      .optional(),
+    residualHumanCost: z
+      .object({
+        amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+        currency: z
+          .string()
+          .min(3)
+          .max(3)
+          .regex(/^[A-Z]{3}$/),
+      })
+      .passthrough()
+      .optional(),
+    qualityAtBaseline: z.number().optional(),
+    qualityRealised: z.number().optional(),
+    residualTailQuality: z.number().optional(),
+    verdict: z
+      .enum(['on_case', 'below_case', 'above_case', 'not_yet_measurable'])
+      .optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const ResponseMeta = z
+  .object({
+    requestId: z.string().uuid(),
+    correlationId: z.string(),
+    generatedAt: z.string().datetime({ offset: true }),
+  })
+  .partial()
+  .passthrough();
+const BenefitRecordResponse = z
+  .object({
+    data: z
+      .object({
+        queueId: z.string(),
+        period: z.string(),
+        businessCaseReference: z.string().optional(),
+        promisedDeflectionRate: z.number().optional(),
+        realisedDeflectionRate: z.number().optional(),
+        promisedCostPerItem: z
+          .object({
+            amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+            currency: z
+              .string()
+              .min(3)
+              .max(3)
+              .regex(/^[A-Z]{3}$/),
+          })
+          .passthrough()
+          .optional(),
+        realisedCostPerItem: z
+          .object({
+            amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+            currency: z
+              .string()
+              .min(3)
+              .max(3)
+              .regex(/^[A-Z]{3}$/),
+          })
+          .passthrough()
+          .optional(),
+        vendorSpend: z
+          .object({
+            amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+            currency: z
+              .string()
+              .min(3)
+              .max(3)
+              .regex(/^[A-Z]{3}$/),
+          })
+          .passthrough()
+          .optional(),
+        residualHumanCost: z
+          .object({
+            amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+            currency: z
+              .string()
+              .min(3)
+              .max(3)
+              .regex(/^[A-Z]{3}$/),
+          })
+          .passthrough()
+          .optional(),
+        qualityAtBaseline: z.number().optional(),
+        qualityRealised: z.number().optional(),
+        residualTailQuality: z.number().optional(),
+        verdict: z
+          .enum(['on_case', 'below_case', 'above_case', 'not_yet_measurable'])
+          .optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const EgressRecord = z
+  .object({
+    id: z.string().regex(/^egr_[0-9A-HJKMNP-TV-Z]{26}$/),
+    workItemId: z.string(),
+    queueId: z.string().optional(),
+    vendorId: z.string(),
+    processingTermsId: z.string().optional(),
+    payloadClass: z
+      .enum(['full_content', 'derived_features', 'hash_only', 'metadata_only'])
+      .optional(),
+    originTerritory: z.string().optional(),
+    processingTerritory: z.string().optional(),
+    clientId: z.string().optional(),
+    sentAt: z.string().datetime({ offset: true }),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const EgressRecordListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          id: z.string().regex(/^egr_[0-9A-HJKMNP-TV-Z]{26}$/),
+          workItemId: z.string(),
+          queueId: z.string().optional(),
+          vendorId: z.string(),
+          processingTermsId: z.string().optional(),
+          payloadClass: z
+            .enum([
+              'full_content',
+              'derived_features',
+              'hash_only',
+              'metadata_only',
+            ])
+            .optional(),
+          originTerritory: z.string().optional(),
+          processingTerritory: z.string().optional(),
+          clientId: z.string().optional(),
+          sentAt: z.string().datetime({ offset: true }),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const EgressRecordListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              id: z.string().regex(/^egr_[0-9A-HJKMNP-TV-Z]{26}$/),
+              workItemId: z.string(),
+              queueId: z.string().optional(),
+              vendorId: z.string(),
+              processingTermsId: z.string().optional(),
+              payloadClass: z
+                .enum([
+                  'full_content',
+                  'derived_features',
+                  'hash_only',
+                  'metadata_only',
+                ])
+                .optional(),
+              originTerritory: z.string().optional(),
+              processingTerritory: z.string().optional(),
+              clientId: z.string().optional(),
+              sentAt: z.string().datetime({ offset: true }),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const ExposureLedgerEntry = z
+  .object({
+    id: z.string().regex(/^exp_[0-9A-HJKMNP-TV-Z]{26}$/),
+    agentId: z.string(),
+    period: z.string(),
+    graphicHandlingMinutes: z.number().int(),
+    policyCapMinutes: z.number().int().optional(),
+    overCap: z.boolean().optional(),
+    queuesContributing: z.array(z.string()).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const ExposureLedgerListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          id: z.string().regex(/^exp_[0-9A-HJKMNP-TV-Z]{26}$/),
+          agentId: z.string(),
+          period: z.string(),
+          graphicHandlingMinutes: z.number().int(),
+          policyCapMinutes: z.number().int().optional(),
+          overCap: z.boolean().optional(),
+          queuesContributing: z.array(z.string()).optional(),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const ExposureLedgerListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              id: z.string().regex(/^exp_[0-9A-HJKMNP-TV-Z]{26}$/),
+              agentId: z.string(),
+              period: z.string(),
+              graphicHandlingMinutes: z.number().int(),
+              policyCapMinutes: z.number().int().optional(),
+              overCap: z.boolean().optional(),
+              queuesContributing: z.array(z.string()).optional(),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const RoadmapEntry = z
+  .object({
+    queueId: z.string(),
+    rank: z.number().int(),
+    weightedScore: z.number().optional(),
+    recommendedAction: z.enum([
+      'automate_now',
+      'pilot',
+      'stabilise_policy_first',
+      'keep_human',
+      'revisit_next_cycle',
+    ]),
+    blockingReason: z.string().optional(),
+    trigger: z
+      .enum([
+        'scheduled',
+        'regulatory_change',
+        'volume_shift',
+        'vendor_capability_change',
+        'incident',
+        'sponsor_request',
+      ])
+      .optional(),
+    changedFromPreviousRank: z.number().int().optional(),
+    rationale: z.string().optional(),
+    generatedAt: z.string().datetime({ offset: true }).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const RoadmapEntryListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          queueId: z.string(),
+          rank: z.number().int(),
+          weightedScore: z.number().optional(),
+          recommendedAction: z.enum([
+            'automate_now',
+            'pilot',
+            'stabilise_policy_first',
+            'keep_human',
+            'revisit_next_cycle',
+          ]),
+          blockingReason: z.string().optional(),
+          trigger: z
+            .enum([
+              'scheduled',
+              'regulatory_change',
+              'volume_shift',
+              'vendor_capability_change',
+              'incident',
+              'sponsor_request',
+            ])
+            .optional(),
+          changedFromPreviousRank: z.number().int().optional(),
+          rationale: z.string().optional(),
+          generatedAt: z.string().datetime({ offset: true }).optional(),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const RoadmapEntryListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              queueId: z.string(),
+              rank: z.number().int(),
+              weightedScore: z.number().optional(),
+              recommendedAction: z.enum([
+                'automate_now',
+                'pilot',
+                'stabilise_policy_first',
+                'keep_human',
+                'revisit_next_cycle',
+              ]),
+              blockingReason: z.string().optional(),
+              trigger: z
+                .enum([
+                  'scheduled',
+                  'regulatory_change',
+                  'volume_shift',
+                  'vendor_capability_change',
+                  'incident',
+                  'sponsor_request',
+                ])
+                .optional(),
+              changedFromPreviousRank: z.number().int().optional(),
+              rationale: z.string().optional(),
+              generatedAt: z.string().datetime({ offset: true }).optional(),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const RoadmapRescoreRequest = z
+  .object({
+    trigger: z.enum([
+      'scheduled',
+      'regulatory_change',
+      'volume_shift',
+      'vendor_capability_change',
+      'incident',
+      'sponsor_request',
+    ]),
+    note: z.string().optional(),
+  })
+  .passthrough();
+
+export const schemas: any = {
+  rescoreRoadmap_Body,
+  Problem,
+  Currency,
+  Money,
+  BenefitRecord,
+  ResponseMeta,
+  BenefitRecordResponse,
+  EgressRecord,
+  EgressRecordListData,
+  EgressRecordListResponse,
+  ExposureLedgerEntry,
+  ExposureLedgerListData,
+  ExposureLedgerListResponse,
+  RoadmapEntry,
+  RoadmapEntryListData,
+  RoadmapEntryListResponse,
+  RoadmapRescoreRequest,
+};
+
+const endpoints = makeApi([
+  {
+    method: 'get',
+    path: '/v1/governance/egress-records',
+    alias: 'listEgressRecords',
+    description: `What content left the boundary, to which vendor, under which terms.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(200).optional().default(50),
+      },
+      {
+        name: 'queueId',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'vendorId',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'period',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string().regex(/^egr_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  workItemId: z.string(),
+                  queueId: z.string().optional(),
+                  vendorId: z.string(),
+                  processingTermsId: z.string().optional(),
+                  payloadClass: z
+                    .enum([
+                      'full_content',
+                      'derived_features',
+                      'hash_only',
+                      'metadata_only',
+                    ])
+                    .optional(),
+                  originTerritory: z.string().optional(),
+                  processingTerritory: z.string().optional(),
+                  clientId: z.string().optional(),
+                  sentAt: z.string().datetime({ offset: true }),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'get',
+    path: '/v1/governance/exposure/:agentId',
+    alias: 'getExposureLedger',
+    description: `Graphic-content handling hours for one agent against the policy cap. Returned only to the agent and occupational-health roles.
+`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'agentId',
+        type: 'Path',
+        schema: z.string(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string().regex(/^exp_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  agentId: z.string(),
+                  period: z.string(),
+                  graphicHandlingMinutes: z.number().int(),
+                  policyCapMinutes: z.number().int().optional(),
+                  overCap: z.boolean().optional(),
+                  queuesContributing: z.array(z.string()).optional(),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 403,
+        description: `Authenticated but not permitted`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/v1/queues/:queueId/benefit',
+    alias: 'getBenefitRecord',
+    description: `Realised versus promised benefit against the funding business case.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'queueId',
+        type: 'Path',
+        schema: z.string(),
+      },
+      {
+        name: 'period',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            queueId: z.string(),
+            period: z.string(),
+            businessCaseReference: z.string().optional(),
+            promisedDeflectionRate: z.number().optional(),
+            realisedDeflectionRate: z.number().optional(),
+            promisedCostPerItem: z
+              .object({
+                amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+                currency: z
+                  .string()
+                  .min(3)
+                  .max(3)
+                  .regex(/^[A-Z]{3}$/),
+              })
+              .passthrough()
+              .optional(),
+            realisedCostPerItem: z
+              .object({
+                amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+                currency: z
+                  .string()
+                  .min(3)
+                  .max(3)
+                  .regex(/^[A-Z]{3}$/),
+              })
+              .passthrough()
+              .optional(),
+            vendorSpend: z
+              .object({
+                amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+                currency: z
+                  .string()
+                  .min(3)
+                  .max(3)
+                  .regex(/^[A-Z]{3}$/),
+              })
+              .passthrough()
+              .optional(),
+            residualHumanCost: z
+              .object({
+                amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+                currency: z
+                  .string()
+                  .min(3)
+                  .max(3)
+                  .regex(/^[A-Z]{3}$/),
+              })
+              .passthrough()
+              .optional(),
+            qualityAtBaseline: z.number().optional(),
+            qualityRealised: z.number().optional(),
+            residualTailQuality: z.number().optional(),
+            verdict: z
+              .enum([
+                'on_case',
+                'below_case',
+                'above_case',
+                'not_yet_measurable',
+              ])
+              .optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'get',
+    path: '/v1/roadmap',
+    alias: 'listRoadmapEntries',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(200).optional().default(50),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  queueId: z.string(),
+                  rank: z.number().int(),
+                  weightedScore: z.number().optional(),
+                  recommendedAction: z.enum([
+                    'automate_now',
+                    'pilot',
+                    'stabilise_policy_first',
+                    'keep_human',
+                    'revisit_next_cycle',
+                  ]),
+                  blockingReason: z.string().optional(),
+                  trigger: z
+                    .enum([
+                      'scheduled',
+                      'regulatory_change',
+                      'volume_shift',
+                      'vendor_capability_change',
+                      'incident',
+                      'sponsor_request',
+                    ])
+                    .optional(),
+                  changedFromPreviousRank: z.number().int().optional(),
+                  rationale: z.string().optional(),
+                  generatedAt: z.string().datetime({ offset: true }).optional(),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'post',
+    path: '/v1/roadmap/rescore',
+    alias: 'rescoreRoadmap',
+    description: `Re-run the portfolio scorecard on a cadence or on a trigger such as regulatory change, sustained volume movement, or vendor capability change.
+`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: rescoreRoadmap_Body,
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  queueId: z.string(),
+                  rank: z.number().int(),
+                  weightedScore: z.number().optional(),
+                  recommendedAction: z.enum([
+                    'automate_now',
+                    'pilot',
+                    'stabilise_policy_first',
+                    'keep_human',
+                    'revisit_next_cycle',
+                  ]),
+                  blockingReason: z.string().optional(),
+                  trigger: z
+                    .enum([
+                      'scheduled',
+                      'regulatory_change',
+                      'volume_shift',
+                      'vendor_capability_change',
+                      'incident',
+                      'sponsor_request',
+                    ])
+                    .optional(),
+                  changedFromPreviousRank: z.number().int().optional(),
+                  rationale: z.string().optional(),
+                  generatedAt: z.string().datetime({ offset: true }).optional(),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+]);
+
+export const api: any = new Zodios(
+  'https://api.ddd-codegen-starter.local/v1',
+  endpoints
+);
+
+export function createApiClient(baseUrl: string, options?: ZodiosOptions): any {
+  return new Zodios(baseUrl, endpoints, options);
+}

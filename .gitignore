@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.next/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+packages/openapi-core/src/.bundled/
+**/node_modules/
+**/__pycache__/
+*.pyc
+test-results/
+playwright-report/
+*.log
+.turbo/

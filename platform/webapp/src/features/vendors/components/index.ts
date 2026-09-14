@@ -1,0 +1,1 @@
+export { VendorsHomeView } from './VendorsHomeView';

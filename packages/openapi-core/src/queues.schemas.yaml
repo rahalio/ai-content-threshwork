@@ -1,0 +1,344 @@
+openapi: 3.1.0
+info:
+  title: Queues domain schemas
+  version: 0.1.0
+  description: Queue registry, scorecards, thresholds, policy definitions.
+paths: {}
+components:
+  schemas:
+    QueueId:
+      type: string
+      pattern: '^que_[0-9A-HJKMNP-TV-Z]{26}$'
+      description: Prefixed queue id.
+
+    ImpactTier:
+      type: string
+      description: Consequence of a wrong decision in this queue.
+      enum: [critical_illegal, high_safety_policy, moderate_brand_or_accessibility, low_enrichment]
+
+    TaskType:
+      type: string
+      enum:
+        - policy_moderation
+        - offensive_media_review
+        - metadata_enrichment
+        - catalogue_tagging
+        - localisation_qa
+        - transcreation_review
+        - accessibility_captioning
+        - accessibility_alt_text
+        - rights_clearance
+        - editorial_approval
+
+    AutomationStatus:
+      type: string
+      enum: [not_assessed, blocked, approved_pilot, approved_scaled, suspended, reverted]
+
+    Queue:
+      x-dynamodb:
+        domain: QUEUES
+        entityType: QUEUE
+        entityTypePk: QUEUES
+        pkPattern: entity
+        pkPatternTemplate: "QUEUE#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, name, taskType, impactTier, automationStatus, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/QueueId'
+        name:
+          type: string
+        taskType:
+          $ref: '#/components/schemas/TaskType'
+        impactTier:
+          $ref: '#/components/schemas/ImpactTier'
+        automationStatus:
+          $ref: '#/components/schemas/AutomationStatus'
+        deploymentMode:
+          type: string
+          enum: [human_only, human_in_the_loop, machine_final_with_sampling, machine_final]
+        activeVendorId:
+          type: string
+        fallbackVendorId:
+          type: string
+        policyDefinitionId:
+          type: string
+        dailyVolume:
+          type: integer
+        averageHandlingTimeSeconds:
+          type: integer
+        qualityThreshold:
+          type: number
+          format: float
+        territoryRestrictions:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    QueueCreate:
+      type: object
+      required: [name, taskType, impactTier]
+      properties:
+        name:
+          type: string
+        taskType:
+          $ref: '#/components/schemas/TaskType'
+        impactTier:
+          $ref: '#/components/schemas/ImpactTier'
+        policyDefinitionId:
+          type: string
+        dailyVolume:
+          type: integer
+        averageHandlingTimeSeconds:
+          type: integer
+        qualityThreshold:
+          type: number
+          format: float
+        territoryRestrictions:
+          type: array
+          items:
+            type: string
+
+    PolicyDefinition:
+      x-dynamodb:
+        domain: QUEUES
+        entityType: POLICY_DEFINITION
+        entityTypePk: POLICY_DEFINITIONS
+        pkPattern: entity
+        pkPatternTemplate: "POLICY_DEFINITION#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, version, stability, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        version:
+          type: string
+        taxonomyVersion:
+          type: string
+        stability:
+          type: string
+          enum: [stable, under_revision, unstable]
+        ambiguityNotes:
+          type: string
+        owner:
+          type: string
+        lastReviewedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    QueueScorecard:
+      x-dynamodb:
+        domain: QUEUES
+        entityType: QUEUE_SCORECARD
+        entityTypePk: QUEUE_SCORECARDS
+        pkPattern: entity
+        pkPatternTemplate: "QUEUE_SCORECARD#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, queueId, weightedScore, scoredAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        queueId:
+          $ref: '#/components/schemas/QueueId'
+        weightedScore:
+          type: number
+          format: float
+        rank:
+          type: integer
+        capacityScore:
+          type: number
+          format: float
+        anticipatedDemandScore:
+          type: number
+          format: float
+        humanDifficultyScore:
+          type: number
+          format: float
+        automationDifficultyScore:
+          type: number
+          format: float
+        impactScore:
+          type: number
+          format: float
+        weightings:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+        scoredBy:
+          type: string
+        scoredAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    QueueScorecardCreate:
+      type: object
+      required: [weightings, capacityScore, anticipatedDemandScore, humanDifficultyScore, automationDifficultyScore, impactScore]
+      properties:
+        weightings:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+        capacityScore:
+          type: number
+          format: float
+        anticipatedDemandScore:
+          type: number
+          format: float
+        humanDifficultyScore:
+          type: number
+          format: float
+        automationDifficultyScore:
+          type: number
+          format: float
+        impactScore:
+          type: number
+          format: float
+        notes:
+          type: string
+
+    ThresholdPolicy:
+      x-dynamodb:
+        domain: QUEUES
+        entityType: THRESHOLD_POLICY
+        entityTypePk: THRESHOLD_POLICYS
+        pkPattern: entity
+        pkPatternTemplate: "THRESHOLD_POLICY#${queueId}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [queueId, machineFinalConfidence, createdAt, updatedAt]
+      properties:
+        queueId:
+          $ref: '#/components/schemas/QueueId'
+        machineFinalConfidence:
+          type: number
+          format: float
+        tierFloorConfidence:
+          type: number
+          format: float
+        samplingRate:
+          type: number
+          format: float
+        escalationRule:
+          type: string
+          enum: [always_human_below_threshold, dual_human_below_threshold, defer_to_fallback_vendor]
+        approvedBy:
+          type: string
+        effectiveFrom:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AutomationApprovalRequest:
+      type: object
+      required: [decision, rationale]
+      properties:
+        decision:
+          type: string
+          enum: [approve_pilot, approve_scaled, refuse, suspend, revert]
+        rationale:
+          type: string
+        refusalReason:
+          type: string
+          enum: [unstable_policy_definition, unstable_taxonomy, impact_tier_too_high, no_fallback_vendor, insufficient_evaluation, processing_terms_missing]
+        reviewDueAt:
+          type: string
+          format: date-time
+
+    QueueListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Queue'
+        nextCursor:
+          type: string
+
+    QueueResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Queue'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    QueueListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/QueueListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    PolicyDefinitionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/PolicyDefinition'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    QueueScorecardResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/QueueScorecard'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+
+    ThresholdPolicyResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ThresholdPolicy'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

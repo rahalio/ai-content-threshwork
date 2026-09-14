@@ -1,0 +1,286 @@
+openapi: 3.1.0
+info:
+  title: Threshwork Queues API
+  version: 0.1.0
+  description: |
+    Queue registry, policy pinning, weighted scorecards, impact-tier thresholds,
+    and automation governance approvals.
+  x-domain: que
+  x-product: threshwork
+servers:
+  - url: https://api.threshwork.local
+security:
+  - apiKey: []
+tags:
+  - name: Queues
+    description: Queue registry, policy definitions, and taxonomy pinning
+  - name: Scorecards
+    description: Weighted automation scorecards and threshold policy
+  - name: Governance
+    description: Automation approval decisions per queue
+paths:
+  /v1/queues:
+    get:
+      operationId: listQueues
+      tags: [Queues]
+      summary: List queues
+      x-repository: Queue
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: impactTier
+          in: query
+          schema:
+            $ref: ./queues.schemas.yaml#/components/schemas/ImpactTier
+        - name: automationStatus
+          in: query
+          schema:
+            $ref: ./queues.schemas.yaml#/components/schemas/AutomationStatus
+      responses:
+        '200':
+          description: Queues page
+          content:
+            application/json:
+              schema:
+                $ref: ./queues.schemas.yaml#/components/schemas/QueueListResponse
+        '401':
+          $ref: ./common/responses.yaml#/components/responses/Unauthorized
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: registerQueue
+      tags: [Queues]
+      summary: Register a queue
+      x-repository: Queue
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./queues.schemas.yaml#/components/schemas/QueueCreate
+      responses:
+        '201':
+          description: Queue registered
+          content:
+            application/json:
+              schema:
+                $ref: ./queues.schemas.yaml#/components/schemas/QueueResponse
+        '422':
+          $ref: ./common/responses.yaml#/components/responses/UnprocessableEntity
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/queues/{queueId}:
+    parameters:
+      - name: queueId
+        in: path
+        required: true
+        schema:
+          $ref: ./queues.schemas.yaml#/components/schemas/QueueId
+    get:
+      operationId: getQueue
+      tags: [Queues]
+      summary: Get queue
+      x-repository: Queue
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Queue
+          content:
+            application/json:
+              schema:
+                $ref: ./queues.schemas.yaml#/components/schemas/QueueResponse
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/queues/{queueId}/policy-definition:
+    parameters:
+      - name: queueId
+        in: path
+        required: true
+        schema:
+          $ref: ./queues.schemas.yaml#/components/schemas/QueueId
+    put:
+      operationId: pinPolicyDefinition
+      tags: [Queues]
+      summary: Pin policy definition
+      description: >
+        Pin the policy and taxonomy version a queue is scored and automated against.
+        A queue whose definition is marked unstable cannot be approved for automation.
+      x-repository: PolicyDefinition
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./queues.schemas.yaml#/components/schemas/PolicyDefinition
+      responses:
+        '200':
+          description: Policy definition pinned
+          content:
+            application/json:
+              schema:
+                $ref: ./queues.schemas.yaml#/components/schemas/PolicyDefinitionResponse
+        '409':
+          $ref: ./common/responses.yaml#/components/responses/Conflict
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/queues/{queueId}/scorecard:
+    parameters:
+      - name: queueId
+        in: path
+        required: true
+        schema:
+          $ref: ./queues.schemas.yaml#/components/schemas/QueueId
+    get:
+      operationId: getQueueScorecard
+      tags: [Scorecards]
+      summary: Get current scorecard
+      x-repository: QueueScorecard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current weighted scorecard
+          content:
+            application/json:
+              schema:
+                $ref: ./queues.schemas.yaml#/components/schemas/QueueScorecardResponse
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: scoreQueue
+      tags: [Scorecards]
+      summary: Score a queue
+      description: >
+        Run a scorecard against agreed weightings. Weightings must be supplied and
+        are recorded with the score so the ranking is reproducible later.
+      x-repository: QueueScorecard
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./queues.schemas.yaml#/components/schemas/QueueScorecardCreate
+      responses:
+        '201':
+          description: Scorecard recorded
+          content:
+            application/json:
+              schema:
+                $ref: ./queues.schemas.yaml#/components/schemas/QueueScorecardResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/queues/{queueId}/threshold-policy:
+    parameters:
+      - name: queueId
+        in: path
+        required: true
+        schema:
+          $ref: ./queues.schemas.yaml#/components/schemas/QueueId
+    get:
+      operationId: getThresholdPolicy
+      tags: [Scorecards]
+      summary: Get threshold policy
+      x-repository: ThresholdPolicy
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active threshold policy
+          content:
+            application/json:
+              schema:
+                $ref: ./queues.schemas.yaml#/components/schemas/ThresholdPolicyResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    put:
+      operationId: setThresholdPolicy
+      tags: [Scorecards]
+      summary: Set threshold policy
+      description: >
+        Loosening a threshold below the floor mandated by the queue impact tier
+        requires an active governance approval and is otherwise refused.
+      x-repository: ThresholdPolicy
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./queues.schemas.yaml#/components/schemas/ThresholdPolicy
+      responses:
+        '200':
+          description: Threshold policy updated
+          content:
+            application/json:
+              schema:
+                $ref: ./queues.schemas.yaml#/components/schemas/ThresholdPolicyResponse
+        '403':
+          $ref: ./common/responses.yaml#/components/responses/Forbidden
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/governance/queues/{queueId}/automation-approval:
+    parameters:
+      - name: queueId
+        in: path
+        required: true
+        schema:
+          $ref: ./queues.schemas.yaml#/components/schemas/QueueId
+    post:
+      operationId: decideAutomationApproval
+      tags: [Governance]
+      summary: Decide automation approval
+      description: >
+        Approve, refuse, suspend, or revert automation on a queue. Refusal reasons
+        are recorded so an unstable policy definition cannot be automated by
+        operational enthusiasm.
+      x-repository: Queue
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./queues.schemas.yaml#/components/schemas/AutomationApprovalRequest
+      responses:
+        '200':
+          description: Governance decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: ./queues.schemas.yaml#/components/schemas/QueueResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth

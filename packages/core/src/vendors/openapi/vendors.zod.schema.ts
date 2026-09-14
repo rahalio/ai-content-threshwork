@@ -1,0 +1,1143 @@
+import { makeApi, Zodios, type ZodiosOptions } from '@zodios/core';
+import { z } from 'zod';
+
+const registerVendorConnector_Body = z
+  .object({
+    name: z.string(),
+    vendorClass: z
+      .enum(['tech_giant', 'specialist_startup', 'in_house_build'])
+      .optional(),
+    capabilities: z.array(
+      z.enum([
+        'ingest_metadata',
+        'ingest_text',
+        'moderation_text',
+        'moderation_image',
+        'moderation_video',
+        'tagging_image',
+        'tagging_video',
+        'custom_training_text',
+        'custom_training_image',
+      ])
+    ),
+    contractedAccuracyFloor: z.number().optional(),
+    pricePerThousandCalls: z
+      .object({
+        amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+        currency: z
+          .string()
+          .min(3)
+          .max(3)
+          .regex(/^[A-Z]{3}$/),
+      })
+      .passthrough()
+      .optional(),
+    permittedTerritories: z.array(z.string()).optional(),
+    processingTermsId: z.string().optional(),
+  })
+  .passthrough();
+const startVendorEvaluation_Body = z
+  .object({
+    queueId: z.string(),
+    goldenSetId: z.string().optional(),
+    mode: z.enum([
+      'golden_set_only',
+      'live_shadow',
+      'golden_set_and_live_shadow',
+    ]),
+    sampleSize: z.number().int().optional(),
+  })
+  .passthrough();
+const cutoverVendorTraffic_Body = z
+  .object({
+    targetVendorId: z.string(),
+    reason: z.enum([
+      'accuracy_drift',
+      'cost',
+      'coverage_gap',
+      'contract_end',
+      'incident',
+      'planned_migration',
+    ]),
+    rollbackWindowMinutes: z.number().int().optional().default(120),
+  })
+  .passthrough();
+const VendorCapability = z.enum([
+  'ingest_metadata',
+  'ingest_text',
+  'moderation_text',
+  'moderation_image',
+  'moderation_video',
+  'tagging_image',
+  'tagging_video',
+  'custom_training_text',
+  'custom_training_image',
+]);
+const Problem = z
+  .object({
+    type: z.string().url(),
+    title: z.string(),
+    status: z.number().int(),
+    detail: z.string(),
+    instance: z.string().url(),
+    code: z.string(),
+  })
+  .partial()
+  .passthrough();
+const VendorId = z.string();
+const Currency = z.string();
+const Money = z
+  .object({
+    amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+    currency: z
+      .string()
+      .min(3)
+      .max(3)
+      .regex(/^[A-Z]{3}$/),
+  })
+  .passthrough();
+const VendorConnector = z
+  .object({
+    id: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+    name: z.string(),
+    vendorClass: z
+      .enum(['tech_giant', 'specialist_startup', 'in_house_build'])
+      .optional(),
+    capabilities: z.array(
+      z.enum([
+        'ingest_metadata',
+        'ingest_text',
+        'moderation_text',
+        'moderation_image',
+        'moderation_video',
+        'tagging_image',
+        'tagging_video',
+        'custom_training_text',
+        'custom_training_image',
+      ])
+    ),
+    status: z.enum([
+      'candidate',
+      'evaluating',
+      'live',
+      'fallback',
+      'suspended',
+      'retired',
+    ]),
+    contractedAccuracyFloor: z.number().optional(),
+    pricePerThousandCalls: z
+      .object({
+        amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+        currency: z
+          .string()
+          .min(3)
+          .max(3)
+          .regex(/^[A-Z]{3}$/),
+      })
+      .passthrough()
+      .optional(),
+    permittedTerritories: z.array(z.string()).optional(),
+    processingTermsId: z.string().optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const VendorConnectorListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          id: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+          name: z.string(),
+          vendorClass: z
+            .enum(['tech_giant', 'specialist_startup', 'in_house_build'])
+            .optional(),
+          capabilities: z.array(
+            z.enum([
+              'ingest_metadata',
+              'ingest_text',
+              'moderation_text',
+              'moderation_image',
+              'moderation_video',
+              'tagging_image',
+              'tagging_video',
+              'custom_training_text',
+              'custom_training_image',
+            ])
+          ),
+          status: z.enum([
+            'candidate',
+            'evaluating',
+            'live',
+            'fallback',
+            'suspended',
+            'retired',
+          ]),
+          contractedAccuracyFloor: z.number().optional(),
+          pricePerThousandCalls: z
+            .object({
+              amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+              currency: z
+                .string()
+                .min(3)
+                .max(3)
+                .regex(/^[A-Z]{3}$/),
+            })
+            .passthrough()
+            .optional(),
+          permittedTerritories: z.array(z.string()).optional(),
+          processingTermsId: z.string().optional(),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const ResponseMeta = z
+  .object({
+    requestId: z.string().uuid(),
+    correlationId: z.string(),
+    generatedAt: z.string().datetime({ offset: true }),
+  })
+  .partial()
+  .passthrough();
+const VendorConnectorListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              id: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+              name: z.string(),
+              vendorClass: z
+                .enum(['tech_giant', 'specialist_startup', 'in_house_build'])
+                .optional(),
+              capabilities: z.array(
+                z.enum([
+                  'ingest_metadata',
+                  'ingest_text',
+                  'moderation_text',
+                  'moderation_image',
+                  'moderation_video',
+                  'tagging_image',
+                  'tagging_video',
+                  'custom_training_text',
+                  'custom_training_image',
+                ])
+              ),
+              status: z.enum([
+                'candidate',
+                'evaluating',
+                'live',
+                'fallback',
+                'suspended',
+                'retired',
+              ]),
+              contractedAccuracyFloor: z.number().optional(),
+              pricePerThousandCalls: z
+                .object({
+                  amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+                  currency: z
+                    .string()
+                    .min(3)
+                    .max(3)
+                    .regex(/^[A-Z]{3}$/),
+                })
+                .passthrough()
+                .optional(),
+              permittedTerritories: z.array(z.string()).optional(),
+              processingTermsId: z.string().optional(),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const VendorConnectorCreate = z
+  .object({
+    name: z.string(),
+    vendorClass: z
+      .enum(['tech_giant', 'specialist_startup', 'in_house_build'])
+      .optional(),
+    capabilities: z.array(
+      z.enum([
+        'ingest_metadata',
+        'ingest_text',
+        'moderation_text',
+        'moderation_image',
+        'moderation_video',
+        'tagging_image',
+        'tagging_video',
+        'custom_training_text',
+        'custom_training_image',
+      ])
+    ),
+    contractedAccuracyFloor: z.number().optional(),
+    pricePerThousandCalls: z
+      .object({
+        amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+        currency: z
+          .string()
+          .min(3)
+          .max(3)
+          .regex(/^[A-Z]{3}$/),
+      })
+      .passthrough()
+      .optional(),
+    permittedTerritories: z.array(z.string()).optional(),
+    processingTermsId: z.string().optional(),
+  })
+  .passthrough();
+const VendorConnectorResponse = z
+  .object({
+    data: z
+      .object({
+        id: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+        name: z.string(),
+        vendorClass: z
+          .enum(['tech_giant', 'specialist_startup', 'in_house_build'])
+          .optional(),
+        capabilities: z.array(
+          z.enum([
+            'ingest_metadata',
+            'ingest_text',
+            'moderation_text',
+            'moderation_image',
+            'moderation_video',
+            'tagging_image',
+            'tagging_video',
+            'custom_training_text',
+            'custom_training_image',
+          ])
+        ),
+        status: z.enum([
+          'candidate',
+          'evaluating',
+          'live',
+          'fallback',
+          'suspended',
+          'retired',
+        ]),
+        contractedAccuracyFloor: z.number().optional(),
+        pricePerThousandCalls: z
+          .object({
+            amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+            currency: z
+              .string()
+              .min(3)
+              .max(3)
+              .regex(/^[A-Z]{3}$/),
+          })
+          .passthrough()
+          .optional(),
+        permittedTerritories: z.array(z.string()).optional(),
+        processingTermsId: z.string().optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const EvaluationId = z.string();
+const VendorEvaluation = z
+  .object({
+    id: z.string().regex(/^vev_[0-9A-HJKMNP-TV-Z]{26}$/),
+    vendorId: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+    queueId: z.string(),
+    goldenSetId: z.string().optional(),
+    mode: z.enum([
+      'golden_set_only',
+      'live_shadow',
+      'golden_set_and_live_shadow',
+    ]),
+    status: z.enum(['queued', 'running', 'complete', 'abandoned']),
+    agreementWithHumanLabel: z.number().optional(),
+    falseNegativeRate: z.number().optional(),
+    falsePositiveRate: z.number().optional(),
+    residualHumanHandlingSeconds: z.number().int().optional(),
+    totalCostPerThousandDecisions: z
+      .object({
+        amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+        currency: z
+          .string()
+          .min(3)
+          .max(3)
+          .regex(/^[A-Z]{3}$/),
+      })
+      .passthrough()
+      .optional(),
+    meetsContractedFloor: z.boolean().optional(),
+    completedAt: z.string().datetime({ offset: true }).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const VendorEvaluationListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          id: z.string().regex(/^vev_[0-9A-HJKMNP-TV-Z]{26}$/),
+          vendorId: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+          queueId: z.string(),
+          goldenSetId: z.string().optional(),
+          mode: z.enum([
+            'golden_set_only',
+            'live_shadow',
+            'golden_set_and_live_shadow',
+          ]),
+          status: z.enum(['queued', 'running', 'complete', 'abandoned']),
+          agreementWithHumanLabel: z.number().optional(),
+          falseNegativeRate: z.number().optional(),
+          falsePositiveRate: z.number().optional(),
+          residualHumanHandlingSeconds: z.number().int().optional(),
+          totalCostPerThousandDecisions: z
+            .object({
+              amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+              currency: z
+                .string()
+                .min(3)
+                .max(3)
+                .regex(/^[A-Z]{3}$/),
+            })
+            .passthrough()
+            .optional(),
+          meetsContractedFloor: z.boolean().optional(),
+          completedAt: z.string().datetime({ offset: true }).optional(),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const VendorEvaluationListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              id: z.string().regex(/^vev_[0-9A-HJKMNP-TV-Z]{26}$/),
+              vendorId: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+              queueId: z.string(),
+              goldenSetId: z.string().optional(),
+              mode: z.enum([
+                'golden_set_only',
+                'live_shadow',
+                'golden_set_and_live_shadow',
+              ]),
+              status: z.enum(['queued', 'running', 'complete', 'abandoned']),
+              agreementWithHumanLabel: z.number().optional(),
+              falseNegativeRate: z.number().optional(),
+              falsePositiveRate: z.number().optional(),
+              residualHumanHandlingSeconds: z.number().int().optional(),
+              totalCostPerThousandDecisions: z
+                .object({
+                  amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+                  currency: z
+                    .string()
+                    .min(3)
+                    .max(3)
+                    .regex(/^[A-Z]{3}$/),
+                })
+                .passthrough()
+                .optional(),
+              meetsContractedFloor: z.boolean().optional(),
+              completedAt: z.string().datetime({ offset: true }).optional(),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const VendorEvaluationCreate = z
+  .object({
+    queueId: z.string(),
+    goldenSetId: z.string().optional(),
+    mode: z.enum([
+      'golden_set_only',
+      'live_shadow',
+      'golden_set_and_live_shadow',
+    ]),
+    sampleSize: z.number().int().optional(),
+  })
+  .passthrough();
+const VendorEvaluationResponse = z
+  .object({
+    data: z
+      .object({
+        id: z.string().regex(/^vev_[0-9A-HJKMNP-TV-Z]{26}$/),
+        vendorId: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+        queueId: z.string(),
+        goldenSetId: z.string().optional(),
+        mode: z.enum([
+          'golden_set_only',
+          'live_shadow',
+          'golden_set_and_live_shadow',
+        ]),
+        status: z.enum(['queued', 'running', 'complete', 'abandoned']),
+        agreementWithHumanLabel: z.number().optional(),
+        falseNegativeRate: z.number().optional(),
+        falsePositiveRate: z.number().optional(),
+        residualHumanHandlingSeconds: z.number().int().optional(),
+        totalCostPerThousandDecisions: z
+          .object({
+            amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+            currency: z
+              .string()
+              .min(3)
+              .max(3)
+              .regex(/^[A-Z]{3}$/),
+          })
+          .passthrough()
+          .optional(),
+        meetsContractedFloor: z.boolean().optional(),
+        completedAt: z.string().datetime({ offset: true }).optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const VendorCutoverRequest = z
+  .object({
+    targetVendorId: z.string(),
+    reason: z.enum([
+      'accuracy_drift',
+      'cost',
+      'coverage_gap',
+      'contract_end',
+      'incident',
+      'planned_migration',
+    ]),
+    rollbackWindowMinutes: z.number().int().optional().default(120),
+  })
+  .passthrough();
+const QueueCutoverResult = z
+  .object({
+    queueId: z.string(),
+    activeVendorId: z.string(),
+    fallbackVendorId: z.string(),
+    rollbackWindowMinutes: z.number().int().optional(),
+  })
+  .passthrough();
+const QueueCutoverResponse = z
+  .object({
+    data: z
+      .object({
+        queueId: z.string(),
+        activeVendorId: z.string(),
+        fallbackVendorId: z.string(),
+        rollbackWindowMinutes: z.number().int().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const GoldenSetId = z.string();
+const GoldenSet = z
+  .object({
+    id: z.string().regex(/^gld_[0-9A-HJKMNP-TV-Z]{26}$/),
+    queueId: z.string(),
+    itemCount: z.number().int(),
+    labelledBy: z.array(z.string()).optional(),
+    interAnnotatorAgreement: z.number().optional(),
+    policyDefinitionVersion: z.string().optional(),
+    restrictedStore: z.boolean().optional(),
+    refreshedAt: z.string().datetime({ offset: true }).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const GoldenSetListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          id: z.string().regex(/^gld_[0-9A-HJKMNP-TV-Z]{26}$/),
+          queueId: z.string(),
+          itemCount: z.number().int(),
+          labelledBy: z.array(z.string()).optional(),
+          interAnnotatorAgreement: z.number().optional(),
+          policyDefinitionVersion: z.string().optional(),
+          restrictedStore: z.boolean().optional(),
+          refreshedAt: z.string().datetime({ offset: true }).optional(),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const GoldenSetListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              id: z.string().regex(/^gld_[0-9A-HJKMNP-TV-Z]{26}$/),
+              queueId: z.string(),
+              itemCount: z.number().int(),
+              labelledBy: z.array(z.string()).optional(),
+              interAnnotatorAgreement: z.number().optional(),
+              policyDefinitionVersion: z.string().optional(),
+              restrictedStore: z.boolean().optional(),
+              refreshedAt: z.string().datetime({ offset: true }).optional(),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+
+export const schemas: any = {
+  registerVendorConnector_Body,
+  startVendorEvaluation_Body,
+  cutoverVendorTraffic_Body,
+  VendorCapability,
+  Problem,
+  VendorId,
+  Currency,
+  Money,
+  VendorConnector,
+  VendorConnectorListData,
+  ResponseMeta,
+  VendorConnectorListResponse,
+  VendorConnectorCreate,
+  VendorConnectorResponse,
+  EvaluationId,
+  VendorEvaluation,
+  VendorEvaluationListData,
+  VendorEvaluationListResponse,
+  VendorEvaluationCreate,
+  VendorEvaluationResponse,
+  VendorCutoverRequest,
+  QueueCutoverResult,
+  QueueCutoverResponse,
+  GoldenSetId,
+  GoldenSet,
+  GoldenSetListData,
+  GoldenSetListResponse,
+};
+
+const endpoints = makeApi([
+  {
+    method: 'get',
+    path: '/v1/golden-sets',
+    alias: 'listGoldenSets',
+    description: `Labelled samples drawn from the operation&#x27;s own queues.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(200).optional().default(50),
+      },
+      {
+        name: 'queueId',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string().regex(/^gld_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  queueId: z.string(),
+                  itemCount: z.number().int(),
+                  labelledBy: z.array(z.string()).optional(),
+                  interAnnotatorAgreement: z.number().optional(),
+                  policyDefinitionVersion: z.string().optional(),
+                  restrictedStore: z.boolean().optional(),
+                  refreshedAt: z.string().datetime({ offset: true }).optional(),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'post',
+    path: '/v1/queues/:queueId/vendor-cutover',
+    alias: 'cutoverVendorTraffic',
+    description: `Move a queue to a different vendor or revert it to human-final decisioning, with a rollback window. Refused if the target vendor has no completed evaluation on this queue&#x27;s golden set.
+`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: cutoverVendorTraffic_Body,
+      },
+      {
+        name: 'queueId',
+        type: 'Path',
+        schema: z.string(),
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            queueId: z.string(),
+            activeVendorId: z.string(),
+            fallbackVendorId: z.string(),
+            rollbackWindowMinutes: z.number().int().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'get',
+    path: '/v1/vendors',
+    alias: 'listVendorConnectors',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(200).optional().default(50),
+      },
+      {
+        name: 'capability',
+        type: 'Query',
+        schema: z
+          .enum([
+            'ingest_metadata',
+            'ingest_text',
+            'moderation_text',
+            'moderation_image',
+            'moderation_video',
+            'tagging_image',
+            'tagging_video',
+            'custom_training_text',
+            'custom_training_image',
+          ])
+          .optional(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  name: z.string(),
+                  vendorClass: z
+                    .enum([
+                      'tech_giant',
+                      'specialist_startup',
+                      'in_house_build',
+                    ])
+                    .optional(),
+                  capabilities: z.array(
+                    z.enum([
+                      'ingest_metadata',
+                      'ingest_text',
+                      'moderation_text',
+                      'moderation_image',
+                      'moderation_video',
+                      'tagging_image',
+                      'tagging_video',
+                      'custom_training_text',
+                      'custom_training_image',
+                    ])
+                  ),
+                  status: z.enum([
+                    'candidate',
+                    'evaluating',
+                    'live',
+                    'fallback',
+                    'suspended',
+                    'retired',
+                  ]),
+                  contractedAccuracyFloor: z.number().optional(),
+                  pricePerThousandCalls: z
+                    .object({
+                      amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+                      currency: z
+                        .string()
+                        .min(3)
+                        .max(3)
+                        .regex(/^[A-Z]{3}$/),
+                    })
+                    .passthrough()
+                    .optional(),
+                  permittedTerritories: z.array(z.string()).optional(),
+                  processingTermsId: z.string().optional(),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'post',
+    path: '/v1/vendors',
+    alias: 'registerVendorConnector',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: registerVendorConnector_Body,
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+            name: z.string(),
+            vendorClass: z
+              .enum(['tech_giant', 'specialist_startup', 'in_house_build'])
+              .optional(),
+            capabilities: z.array(
+              z.enum([
+                'ingest_metadata',
+                'ingest_text',
+                'moderation_text',
+                'moderation_image',
+                'moderation_video',
+                'tagging_image',
+                'tagging_video',
+                'custom_training_text',
+                'custom_training_image',
+              ])
+            ),
+            status: z.enum([
+              'candidate',
+              'evaluating',
+              'live',
+              'fallback',
+              'suspended',
+              'retired',
+            ]),
+            contractedAccuracyFloor: z.number().optional(),
+            pricePerThousandCalls: z
+              .object({
+                amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+                currency: z
+                  .string()
+                  .min(3)
+                  .max(3)
+                  .regex(/^[A-Z]{3}$/),
+              })
+              .passthrough()
+              .optional(),
+            permittedTerritories: z.array(z.string()).optional(),
+            processingTermsId: z.string().optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'get',
+    path: '/v1/vendors/:vendorId/evaluations',
+    alias: 'listVendorEvaluations',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'vendorId',
+        type: 'Path',
+        schema: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(200).optional().default(50),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string().regex(/^vev_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  vendorId: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  queueId: z.string(),
+                  goldenSetId: z.string().optional(),
+                  mode: z.enum([
+                    'golden_set_only',
+                    'live_shadow',
+                    'golden_set_and_live_shadow',
+                  ]),
+                  status: z.enum([
+                    'queued',
+                    'running',
+                    'complete',
+                    'abandoned',
+                  ]),
+                  agreementWithHumanLabel: z.number().optional(),
+                  falseNegativeRate: z.number().optional(),
+                  falsePositiveRate: z.number().optional(),
+                  residualHumanHandlingSeconds: z.number().int().optional(),
+                  totalCostPerThousandDecisions: z
+                    .object({
+                      amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+                      currency: z
+                        .string()
+                        .min(3)
+                        .max(3)
+                        .regex(/^[A-Z]{3}$/),
+                    })
+                    .passthrough()
+                    .optional(),
+                  meetsContractedFloor: z.boolean().optional(),
+                  completedAt: z.string().datetime({ offset: true }).optional(),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'post',
+    path: '/v1/vendors/:vendorId/evaluations',
+    alias: 'startVendorEvaluation',
+    description: `Run a candidate vendor in shadow against the operation&#x27;s own golden set and optionally against live queue traffic, without acting on the result.
+`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: startVendorEvaluation_Body,
+      },
+      {
+        name: 'vendorId',
+        type: 'Path',
+        schema: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string().regex(/^vev_[0-9A-HJKMNP-TV-Z]{26}$/),
+            vendorId: z.string().regex(/^vnd_[0-9A-HJKMNP-TV-Z]{26}$/),
+            queueId: z.string(),
+            goldenSetId: z.string().optional(),
+            mode: z.enum([
+              'golden_set_only',
+              'live_shadow',
+              'golden_set_and_live_shadow',
+            ]),
+            status: z.enum(['queued', 'running', 'complete', 'abandoned']),
+            agreementWithHumanLabel: z.number().optional(),
+            falseNegativeRate: z.number().optional(),
+            falsePositiveRate: z.number().optional(),
+            residualHumanHandlingSeconds: z.number().int().optional(),
+            totalCostPerThousandDecisions: z
+              .object({
+                amount: z.string().regex(/^-?\d+(\.\d{1,5})?$/),
+                currency: z
+                  .string()
+                  .min(3)
+                  .max(3)
+                  .regex(/^[A-Z]{3}$/),
+              })
+              .passthrough()
+              .optional(),
+            meetsContractedFloor: z.boolean().optional(),
+            completedAt: z.string().datetime({ offset: true }).optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+]);
+
+export const api: any = new Zodios(
+  'https://api.ddd-codegen-starter.local/v1',
+  endpoints
+);
+
+export function createApiClient(baseUrl: string, options?: ZodiosOptions): any {
+  return new Zodios(baseUrl, endpoints, options);
+}

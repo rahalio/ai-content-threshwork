@@ -1,0 +1,188 @@
+openapi: 3.1.0
+info:
+  title: Threshwork Vendors API
+  version: 0.1.0
+  description: |
+    Classifier connectors, shadow evaluation against operation golden sets,
+    and within-shift traffic cutover.
+  x-domain: vnd
+  x-product: threshwork
+servers:
+  - url: https://api.threshwork.local
+security:
+  - apiKey: []
+tags:
+  - name: Vendors
+    description: Classifier connectors, shadow evaluation, and traffic cutover
+paths:
+  /v1/vendors:
+    get:
+      operationId: listVendorConnectors
+      tags: [Vendors]
+      summary: List vendor connectors
+      x-repository: VendorConnector
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: capability
+          in: query
+          schema:
+            $ref: ./vendors.schemas.yaml#/components/schemas/VendorCapability
+      responses:
+        '200':
+          description: Vendor connectors page
+          content:
+            application/json:
+              schema:
+                $ref: ./vendors.schemas.yaml#/components/schemas/VendorConnectorListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: registerVendorConnector
+      tags: [Vendors]
+      summary: Register vendor connector
+      x-repository: VendorConnector
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./vendors.schemas.yaml#/components/schemas/VendorConnectorCreate
+      responses:
+        '201':
+          description: Vendor connector registered
+          content:
+            application/json:
+              schema:
+                $ref: ./vendors.schemas.yaml#/components/schemas/VendorConnectorResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/vendors/{vendorId}/evaluations:
+    parameters:
+      - name: vendorId
+        in: path
+        required: true
+        schema:
+          $ref: ./vendors.schemas.yaml#/components/schemas/VendorId
+    get:
+      operationId: listVendorEvaluations
+      tags: [Vendors]
+      summary: List vendor evaluations
+      x-repository: VendorEvaluation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: Evaluations page
+          content:
+            application/json:
+              schema:
+                $ref: ./vendors.schemas.yaml#/components/schemas/VendorEvaluationListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: startVendorEvaluation
+      tags: [Vendors]
+      summary: Start vendor evaluation
+      description: >
+        Run a candidate vendor in shadow against the operation's own golden set and
+        optionally against live queue traffic, without acting on the result.
+      x-repository: VendorEvaluation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./vendors.schemas.yaml#/components/schemas/VendorEvaluationCreate
+      responses:
+        '202':
+          description: Shadow evaluation accepted
+          content:
+            application/json:
+              schema:
+                $ref: ./vendors.schemas.yaml#/components/schemas/VendorEvaluationResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/queues/{queueId}/vendor-cutover:
+    parameters:
+      - name: queueId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: cutoverVendorTraffic
+      tags: [Vendors]
+      summary: Cut over vendor traffic
+      description: >
+        Move a queue to a different vendor or revert it to human-final decisioning,
+        with a rollback window. Refused if the target vendor has no completed
+        evaluation on this queue's golden set.
+      x-repository: none
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./vendors.schemas.yaml#/components/schemas/VendorCutoverRequest
+      responses:
+        '202':
+          description: Cutover accepted
+          content:
+            application/json:
+              schema:
+                $ref: ./vendors.schemas.yaml#/components/schemas/QueueCutoverResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/golden-sets:
+    get:
+      operationId: listGoldenSets
+      tags: [Vendors]
+      summary: List golden sets
+      description: Labelled samples drawn from the operation's own queues.
+      x-repository: GoldenSet
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: queueId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Golden sets page
+          content:
+            application/json:
+              schema:
+                $ref: ./vendors.schemas.yaml#/components/schemas/GoldenSetListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth

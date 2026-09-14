@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #12151c;
+  --accent: #1f6feb;
+  --surface: #eef1f6;
+  --color-ink: #12151c;
+  --color-ink-soft: #1c2230;
+  --color-ink-muted: #4a5568;
+  --color-accent: #1f6feb;
+  --color-accent-soft: #58a6ff;
+  --color-accent-faint: #dbeafe;
+  --color-threshold: #c27803;
+  --color-threshold-soft: #f5d78e;
+  --color-surface: #eef1f6;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #e2e6ee;
+  --color-inverse: #0d1117;
+  --color-inverse-soft: #161b22;
+  --color-on-inverse: #f0f3f8;
+  --color-on-accent: #ffffff;
+  --color-status-info: #0369a1;
+  --color-status-watch: #b45309;
+  --color-status-fail: #b91c1c;
+  --color-status-ok: #047857;
+  --shadow-panel: 0 1px 0 rgba(18, 21, 28, 0.04), 0 8px 22px rgba(18, 21, 28, 0.06);
+}
+
+html.dark {
+  --ink: #e6edf3;
+  --accent: #58a6ff;
+  --surface: #0d1117;
+  --color-ink: #e6edf3;
+  --color-ink-soft: #c9d1d9;
+  --color-ink-muted: #8b949e;
+  --color-accent: #58a6ff;
+  --color-accent-soft: #79b8ff;
+  --color-accent-faint: rgba(88, 166, 255, 0.16);
+  --color-threshold: #e3b341;
+  --color-threshold-soft: rgba(227, 179, 65, 0.2);
+  --color-surface: #0d1117;
+  --color-surface-raised: #161b22;
+  --color-surface-sunken: #21262d;
+  --color-inverse: #010409;
+  --color-inverse-soft: #161b22;
+  --color-on-inverse: #e6edf3;
+  --color-on-accent: #0d1117;
+  --color-status-info: #38bdf8;
+  --color-status-watch: #fbbf24;
+  --color-status-fail: #f87171;
+  --color-status-ok: #34d399;
+  --shadow-panel: 0 1px 0 rgba(0, 0, 0, 0.25), 0 8px 22px rgba(0, 0, 0, 0.4);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1000px 520px at 0% -10%, color-mix(in srgb, var(--color-threshold) 10%, transparent), transparent 50%),
+    radial-gradient(800px 480px at 100% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 48%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, #fff), var(--surface));
+  color: var(--ink);
+}
+
+html.dark body {
+  background:
+    radial-gradient(1000px 520px at 0% -10%, color-mix(in srgb, var(--color-threshold) 8%, transparent), transparent 50%),
+    radial-gradient(800px 480px at 100% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 48%),
+    var(--surface);
+}
+
+@layer utilities {
+  .sandbox-watermark {
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: repeating-linear-gradient(
+      -18deg,
+      transparent,
+      transparent 48px,
+      color-mix(in srgb, var(--color-ink) 3%, transparent) 48px,
+      color-mix(in srgb, var(--color-ink) 3%, transparent) 49px
+    );
+  }
+
+  .threshold-rail {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--color-threshold-soft) 48%,
+      var(--color-threshold) 50%,
+      var(--color-threshold-soft) 52%,
+      transparent 100%
+    );
+  }
+}

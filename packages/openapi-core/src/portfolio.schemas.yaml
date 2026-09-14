@@ -1,0 +1,258 @@
+openapi: 3.1.0
+info:
+  title: Portfolio domain schemas
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    BenefitRecord:
+      x-dynamodb:
+        domain: PORTFOLIO
+        entityType: BENEFIT_RECORD
+        entityTypePk: BENEFIT_RECORDS
+        pkPattern: entity
+        pkPatternTemplate: "BENEFIT_RECORD#${queueId}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [queueId, period, createdAt, updatedAt]
+      properties:
+        queueId:
+          type: string
+        period:
+          type: string
+        businessCaseReference:
+          type: string
+        promisedDeflectionRate:
+          type: number
+          format: float
+        realisedDeflectionRate:
+          type: number
+          format: float
+        promisedCostPerItem:
+          $ref: ./common/primitives.yaml#/components/schemas/Money
+        realisedCostPerItem:
+          $ref: ./common/primitives.yaml#/components/schemas/Money
+        vendorSpend:
+          $ref: ./common/primitives.yaml#/components/schemas/Money
+        residualHumanCost:
+          $ref: ./common/primitives.yaml#/components/schemas/Money
+        qualityAtBaseline:
+          type: number
+          format: float
+        qualityRealised:
+          type: number
+          format: float
+        residualTailQuality:
+          type: number
+          format: float
+        verdict:
+          type: string
+          enum: [on_case, below_case, above_case, not_yet_measurable]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    EgressRecord:
+      x-dynamodb:
+        domain: PORTFOLIO
+        entityType: EGRESS_RECORD
+        entityTypePk: EGRESS_RECORDS
+        pkPattern: entity
+        pkPatternTemplate: "EGRESS_RECORD#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, workItemId, vendorId, sentAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          pattern: '^egr_[0-9A-HJKMNP-TV-Z]{26}$'
+        workItemId:
+          type: string
+        queueId:
+          type: string
+        vendorId:
+          type: string
+        processingTermsId:
+          type: string
+        payloadClass:
+          type: string
+          enum: [full_content, derived_features, hash_only, metadata_only]
+        originTerritory:
+          type: string
+        processingTerritory:
+          type: string
+        clientId:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ExposureLedgerEntry:
+      x-dynamodb:
+        domain: PORTFOLIO
+        entityType: EXPOSURE_LEDGER_ENTRY
+        entityTypePk: EXPOSURE_LEDGER_ENTRYS
+        pkPattern: entity
+        pkPatternTemplate: "EXPOSURE_LEDGER_ENTRY#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, agentId, period, graphicHandlingMinutes, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          pattern: '^exp_[0-9A-HJKMNP-TV-Z]{26}$'
+        agentId:
+          type: string
+        period:
+          type: string
+        graphicHandlingMinutes:
+          type: integer
+        policyCapMinutes:
+          type: integer
+        overCap:
+          type: boolean
+        queuesContributing:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RoadmapEntry:
+      x-dynamodb:
+        domain: PORTFOLIO
+        entityType: ROADMAP_ENTRY
+        entityTypePk: ROADMAP_ENTRYS
+        pkPattern: entity
+        pkPatternTemplate: "ROADMAP_ENTRY#${queueId}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [queueId, rank, recommendedAction, createdAt, updatedAt]
+      properties:
+        queueId:
+          type: string
+        rank:
+          type: integer
+        weightedScore:
+          type: number
+          format: float
+        recommendedAction:
+          type: string
+          enum: [automate_now, pilot, stabilise_policy_first, keep_human, revisit_next_cycle]
+        blockingReason:
+          type: string
+        trigger:
+          type: string
+          enum: [scheduled, regulatory_change, volume_shift, vendor_capability_change, incident, sponsor_request]
+        changedFromPreviousRank:
+          type: integer
+        rationale:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RoadmapRescoreRequest:
+      type: object
+      required: [trigger]
+      properties:
+        trigger:
+          type: string
+          enum: [scheduled, regulatory_change, volume_shift, vendor_capability_change, incident, sponsor_request]
+        note:
+          type: string
+
+    EgressRecordListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EgressRecord'
+        nextCursor:
+          type: string
+    ExposureLedgerListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExposureLedgerEntry'
+        nextCursor:
+          type: string
+    RoadmapEntryListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoadmapEntry'
+        nextCursor:
+          type: string
+
+    BenefitRecordResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/BenefitRecord'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    EgressRecordListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/EgressRecordListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    ExposureLedgerListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ExposureLedgerListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    RoadmapEntryListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/RoadmapEntryListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

@@ -1,0 +1,171 @@
+openapi: 3.1.0
+info:
+  title: Threshwork Portfolio API
+  version: 0.1.0
+  description: |
+    Realised benefit metering, egress register, agent exposure ledgers,
+    and portfolio roadmap re-scoring.
+  x-domain: pfl
+  x-product: threshwork
+servers:
+  - url: https://api.threshwork.local
+security:
+  - apiKey: []
+tags:
+  - name: Benefits
+    description: Realised versus promised benefit per funded automation
+  - name: Governance
+    description: Egress records and agent exposure ledgers
+  - name: Roadmap
+    description: Scheduled and trigger-driven re-scoring of the automation portfolio
+paths:
+  /v1/queues/{queueId}/benefit:
+    parameters:
+      - name: queueId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getBenefitRecord
+      tags: [Benefits]
+      summary: Get benefit record
+      description: Realised versus promised benefit against the funding business case.
+      x-repository: BenefitRecord
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            example: "2026-08"
+      responses:
+        '200':
+          description: Benefit record
+          content:
+            application/json:
+              schema:
+                $ref: ./portfolio.schemas.yaml#/components/schemas/BenefitRecordResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/governance/egress-records:
+    get:
+      operationId: listEgressRecords
+      tags: [Governance]
+      summary: List egress records
+      description: What content left the boundary, to which vendor, under which terms.
+      x-repository: EgressRecord
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: queueId
+          in: query
+          schema:
+            type: string
+        - name: vendorId
+          in: query
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Egress records page
+          content:
+            application/json:
+              schema:
+                $ref: ./portfolio.schemas.yaml#/components/schemas/EgressRecordListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/governance/exposure/{agentId}:
+    parameters:
+      - name: agentId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getExposureLedger
+      tags: [Governance]
+      summary: Get exposure ledger
+      description: >
+        Graphic-content handling hours for one agent against the policy cap.
+        Returned only to the agent and occupational-health roles.
+      x-repository: ExposureLedgerEntry
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Exposure ledger entries
+          content:
+            application/json:
+              schema:
+                $ref: ./portfolio.schemas.yaml#/components/schemas/ExposureLedgerListResponse
+        '403':
+          $ref: ./common/responses.yaml#/components/responses/Forbidden
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/roadmap:
+    get:
+      operationId: listRoadmapEntries
+      tags: [Roadmap]
+      summary: List roadmap entries
+      x-repository: RoadmapEntry
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: Roadmap entries page
+          content:
+            application/json:
+              schema:
+                $ref: ./portfolio.schemas.yaml#/components/schemas/RoadmapEntryListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/roadmap/rescore:
+    post:
+      operationId: rescoreRoadmap
+      tags: [Roadmap]
+      summary: Rescore roadmap
+      description: >
+        Re-run the portfolio scorecard on a cadence or on a trigger such as
+        regulatory change, sustained volume movement, or vendor capability change.
+      x-repository: none
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./portfolio.schemas.yaml#/components/schemas/RoadmapRescoreRequest
+      responses:
+        '202':
+          description: Re-scoring accepted
+          content:
+            application/json:
+              schema:
+                $ref: ./portfolio.schemas.yaml#/components/schemas/RoadmapEntryListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth

@@ -1,0 +1,333 @@
+openapi: 3.1.0
+info:
+  title: Threshwork Routing API
+  version: 0.1.0
+  description: |
+    Work-item intake, rights gating, routing decisions, human review,
+    appeals, and statutory/contractual response clocks.
+  x-domain: rou
+  x-product: threshwork
+servers:
+  - url: https://api.threshwork.local
+security:
+  - apiKey: []
+tags:
+  - name: Routing
+    description: Work item intake, rights gating, and dispatch
+  - name: Review
+    description: Human review workbench and calibration sampling
+  - name: Appeals
+    description: Reversal of machine decisions by a second human
+  - name: Clocks
+    description: Statutory removal windows and contractual SLA tracking
+paths:
+  /v1/work-items:
+    get:
+      operationId: listWorkItems
+      tags: [Routing]
+      summary: List work items
+      x-repository: WorkItem
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: queueId
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            $ref: ./routing.schemas.yaml#/components/schemas/WorkItemState
+      responses:
+        '200':
+          description: Work items page
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/WorkItemListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: submitWorkItem
+      tags: [Routing]
+      summary: Submit work item
+      x-repository: WorkItem
+      security:
+        - apiKey: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./routing.schemas.yaml#/components/schemas/WorkItemCreate
+      responses:
+        '202':
+          description: Work item accepted and routed
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/WorkItemResponse
+        '409':
+          $ref: ./common/responses.yaml#/components/responses/Conflict
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/work-items/{workItemId}/routing:
+    parameters:
+      - name: workItemId
+        in: path
+        required: true
+        schema:
+          $ref: ./routing.schemas.yaml#/components/schemas/WorkItemId
+    get:
+      operationId: getRoutingDecision
+      tags: [Routing]
+      summary: Get routing decision
+      x-repository: RoutingDecision
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Routing decision with evidence
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/RoutingDecisionResponse
+        '404':
+          $ref: ./common/responses.yaml#/components/responses/NotFound
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/work-items/{workItemId}/rights:
+    parameters:
+      - name: workItemId
+        in: path
+        required: true
+        schema:
+          $ref: ./routing.schemas.yaml#/components/schemas/WorkItemId
+    get:
+      operationId: getRightsRecord
+      tags: [Routing]
+      summary: Get rights record
+      x-repository: RightsRecord
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Licence and usage-right status
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/RightsRecordResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/work-items/{workItemId}/review:
+    parameters:
+      - name: workItemId
+        in: path
+        required: true
+        schema:
+          $ref: ./routing.schemas.yaml#/components/schemas/WorkItemId
+    post:
+      operationId: recordHumanReview
+      tags: [Review]
+      summary: Record human review
+      x-repository: HumanReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./routing.schemas.yaml#/components/schemas/HumanReviewCreate
+      responses:
+        '201':
+          description: Human decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/HumanReviewResponse
+        '422':
+          $ref: ./common/responses.yaml#/components/responses/UnprocessableEntity
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/review/calibration-samples:
+    get:
+      operationId: listCalibrationSamples
+      tags: [Review]
+      summary: List calibration samples
+      description: Machine-final decisions drawn for sampled re-review.
+      x-repository: HumanReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: queueId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Calibration samples page
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/HumanReviewListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/appeals:
+    get:
+      operationId: listAppeals
+      tags: [Appeals]
+      summary: List appeals
+      x-repository: Appeal
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: outcome
+          in: query
+          schema:
+            type: string
+            enum: [pending, upheld, rejected, expired]
+      responses:
+        '200':
+          description: Appeals page
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/AppealListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+    post:
+      operationId: openAppeal
+      tags: [Appeals]
+      summary: Open appeal
+      x-repository: Appeal
+      security:
+        - apiKey: []
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./routing.schemas.yaml#/components/schemas/AppealCreate
+      responses:
+        '201':
+          description: Appeal opened
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/AppealResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/appeals/{appealId}/resolution:
+    parameters:
+      - name: appealId
+        in: path
+        required: true
+        schema:
+          $ref: ./routing.schemas.yaml#/components/schemas/AppealId
+    post:
+      operationId: resolveAppeal
+      tags: [Appeals]
+      summary: Resolve appeal
+      x-repository: Appeal
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./routing.schemas.yaml#/components/schemas/AppealResolveRequest
+      responses:
+        '200':
+          description: Appeal resolved
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/AppealResponse
+        '403':
+          $ref: ./common/responses.yaml#/components/responses/Forbidden
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/response-clocks:
+    get:
+      operationId: listResponseClocks
+      tags: [Clocks]
+      summary: List response clocks
+      x-repository: ResponseClock
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: ./common/parameters.yaml#/components/parameters/Cursor
+        - $ref: ./common/parameters.yaml#/components/parameters/Limit
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [running, at_risk, met, breached]
+        - name: clockType
+          in: query
+          schema:
+            $ref: ./routing.schemas.yaml#/components/schemas/ClockType
+      responses:
+        '200':
+          description: Response clocks page
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/ResponseClockListResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+  /v1/response-clocks/{clockId}/preempt:
+    parameters:
+      - name: clockId
+        in: path
+        required: true
+        schema:
+          $ref: ./routing.schemas.yaml#/components/schemas/ClockId
+    post:
+      operationId: preemptResponseClock
+      tags: [Clocks]
+      summary: Preempt response clock
+      description: Promote the underlying item ahead of lower-priority work before breach.
+      x-repository: ResponseClock
+      security:
+        - bearerAuth: []
+      responses:
+        '202':
+          description: Item promoted
+          content:
+            application/json:
+              schema:
+                $ref: ./routing.schemas.yaml#/components/schemas/ResponseClockResponse
+        default:
+          $ref: ./common/responses.yaml#/components/responses/Problem
+
+components:
+  securitySchemes:
+    apiKey:
+      $ref: ./common/security.yaml#/components/securitySchemes/apiKey
+    bearerAuth:
+      $ref: ./common/security.yaml#/components/securitySchemes/bearerAuth

@@ -1,0 +1,1793 @@
+openapi: 3.0.3
+info:
+  title: Threshwork
+  version: 0.1.0
+  description: >-
+    Automation portfolio control plane for content operations. Scores every review
+    queue on capacity, difficulty, and impact; sets the confidence threshold at which
+    a machine decision stands without a human; routes work between classifier vendors
+    and human agents under statutory clocks and rights gates; and meters realised
+    benefit per queue against the business case that funded it.
+  x-product-slug: ai-content-threshwork
+  x-source: ai-in-content/Accenture-AI-In-Content-Services/
+servers:
+  - url: https://api.example.com
+tags:
+  - name: Queues
+    description: Queue registry, policy definitions, and taxonomy pinning
+  - name: Scorecards
+    description: Weighted automation scorecards across capacity, difficulty, and impact
+  - name: Routing
+    description: Work item intake, rights gating, and machine or human dispatch
+  - name: Review
+    description: Human review workbench decisions and calibration sampling
+  - name: Appeals
+    description: Reversal of machine decisions by a second human
+  - name: Vendors
+    description: Classifier connectors, shadow evaluation, and traffic cutover
+  - name: Clocks
+    description: Statutory removal windows and contractual SLA tracking
+  - name: Benefits
+    description: Realised versus promised benefit per funded automation
+  - name: Governance
+    description: Automation approval, egress records, and agent exposure ledgers
+  - name: Roadmap
+    description: Scheduled and trigger-driven re-scoring of the automation portfolio
+paths:
+  /v1/queues:
+    get:
+      operationId: listQueues
+      tags: [Queues]
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: impactTier
+          in: query
+          schema:
+            $ref: "#/components/schemas/ImpactTier"
+        - name: automationStatus
+          in: query
+          schema:
+            type: string
+            enum: [not_assessed, blocked, approved_pilot, approved_scaled, suspended, reverted]
+      responses:
+        "200":
+          description: Queues page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeQueue"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: registerQueue
+      tags: [Queues]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueueCreate"
+      responses:
+        "201":
+          description: Queue registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeQueue"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /v1/queues/{queueId}:
+    parameters:
+      - $ref: "#/components/parameters/QueueId"
+    get:
+      operationId: getQueue
+      tags: [Queues]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeQueue"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/queues/{queueId}/policy-definition:
+    parameters:
+      - $ref: "#/components/parameters/QueueId"
+    put:
+      operationId: pinPolicyDefinition
+      tags: [Queues]
+      description: >-
+        Pin the policy and taxonomy version a queue is scored and automated against.
+        A queue whose definition is marked unstable cannot be approved for automation.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyDefinition"
+      responses:
+        "200":
+          description: Policy definition pinned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopePolicyDefinition"
+        "409":
+          description: Definition is unstable and the queue has live automation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/queues/{queueId}/scorecard:
+    parameters:
+      - $ref: "#/components/parameters/QueueId"
+    get:
+      operationId: getQueueScorecard
+      tags: [Scorecards]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Current weighted scorecard for the queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeQueueScorecard"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: scoreQueue
+      tags: [Scorecards]
+      description: >-
+        Run a scorecard against agreed weightings. Weightings must be supplied and
+        are recorded with the score so the ranking is reproducible later.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QueueScorecardCreate"
+      responses:
+        "201":
+          description: Scorecard recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeQueueScorecard"
+  /v1/queues/{queueId}/threshold-policy:
+    parameters:
+      - $ref: "#/components/parameters/QueueId"
+    get:
+      operationId: getThresholdPolicy
+      tags: [Scorecards]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Active threshold policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeThresholdPolicy"
+    put:
+      operationId: setThresholdPolicy
+      tags: [Scorecards]
+      description: >-
+        Loosening a threshold below the floor mandated by the queue impact tier
+        requires an active governance approval and is otherwise refused.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThresholdPolicy"
+      responses:
+        "200":
+          description: Threshold policy updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeThresholdPolicy"
+        "403":
+          description: Threshold below tier floor without governance approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/work-items:
+    get:
+      operationId: listWorkItems
+      tags: [Routing]
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: queueId
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [received, rights_blocked, routed, machine_final, awaiting_human, human_final, appealed, closed]
+      responses:
+        "200":
+          description: Work items page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeWorkItem"
+    post:
+      operationId: submitWorkItem
+      tags: [Routing]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkItemCreate"
+      responses:
+        "202":
+          description: Work item accepted and routed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeWorkItem"
+        "409":
+          description: Rights gate blocked the item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/work-items/{workItemId}/routing:
+    parameters:
+      - $ref: "#/components/parameters/WorkItemId"
+    get:
+      operationId: getRoutingDecision
+      tags: [Routing]
+      description: Which lane the item took, at what confidence, under which vendor and terms.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Routing decision with evidence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeRoutingDecision"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/work-items/{workItemId}/rights:
+    parameters:
+      - $ref: "#/components/parameters/WorkItemId"
+    get:
+      operationId: getRightsRecord
+      tags: [Routing]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Licence and usage-right status for the underlying asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeRightsRecord"
+  /v1/work-items/{workItemId}/review:
+    parameters:
+      - $ref: "#/components/parameters/WorkItemId"
+    post:
+      operationId: recordHumanReview
+      tags: [Review]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HumanReviewCreate"
+      responses:
+        "201":
+          description: Human decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeHumanReview"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /v1/review/calibration-samples:
+    get:
+      operationId: listCalibrationSamples
+      tags: [Review]
+      description: >-
+        Machine-final decisions drawn for sampled re-review, used to detect drift
+        before it reaches a regulator or a published harm.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: queueId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Calibration samples page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeHumanReview"
+  /v1/appeals:
+    get:
+      operationId: listAppeals
+      tags: [Appeals]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: outcome
+          in: query
+          schema:
+            type: string
+            enum: [pending, upheld, rejected, expired]
+      responses:
+        "200":
+          description: Appeals page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeAppeal"
+    post:
+      operationId: openAppeal
+      tags: [Appeals]
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppealCreate"
+      responses:
+        "201":
+          description: Appeal opened and assigned to a reviewer other than the original
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeAppeal"
+  /v1/appeals/{appealId}/resolution:
+    parameters:
+      - $ref: "#/components/parameters/AppealId"
+    post:
+      operationId: resolveAppeal
+      tags: [Appeals]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [outcome, rationale]
+              properties:
+                outcome:
+                  type: string
+                  enum: [upheld, rejected]
+                rationale:
+                  type: string
+                feedsCalibrationSet:
+                  type: boolean
+                  default: true
+      responses:
+        "200":
+          description: Appeal resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeAppeal"
+        "403":
+          description: Reviewer made the original decision and may not adjudicate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/vendors:
+    get:
+      operationId: listVendorConnectors
+      tags: [Vendors]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: capability
+          in: query
+          schema:
+            $ref: "#/components/schemas/VendorCapability"
+      responses:
+        "200":
+          description: Vendor connectors page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeVendorConnector"
+    post:
+      operationId: registerVendorConnector
+      tags: [Vendors]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorConnectorCreate"
+      responses:
+        "201":
+          description: Vendor connector registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeVendorConnector"
+  /v1/vendors/{vendorId}/evaluations:
+    parameters:
+      - $ref: "#/components/parameters/VendorId"
+    get:
+      operationId: listVendorEvaluations
+      tags: [Vendors]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Evaluations page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeVendorEvaluation"
+    post:
+      operationId: startVendorEvaluation
+      tags: [Vendors]
+      description: >-
+        Run a candidate vendor in shadow against the operation's own golden set and
+        optionally against live queue traffic, without acting on the result.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorEvaluationCreate"
+      responses:
+        "202":
+          description: Shadow evaluation accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeVendorEvaluation"
+  /v1/queues/{queueId}/vendor-cutover:
+    parameters:
+      - $ref: "#/components/parameters/QueueId"
+    post:
+      operationId: cutoverVendorTraffic
+      tags: [Vendors]
+      description: >-
+        Move a queue to a different vendor or revert it to human-final decisioning,
+        with a rollback window. Refused if the target vendor has no completed
+        evaluation on this queue's golden set.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetVendorId, reason]
+              properties:
+                targetVendorId:
+                  type: string
+                  description: Use the literal value human_only to revert to human-final decisioning
+                reason:
+                  type: string
+                  enum: [accuracy_drift, cost, coverage_gap, contract_end, incident, planned_migration]
+                rollbackWindowMinutes:
+                  type: integer
+                  default: 120
+      responses:
+        "202":
+          description: Cutover accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeQueue"
+        "412":
+          description: No completed shadow evaluation for the target vendor on this queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/golden-sets:
+    get:
+      operationId: listGoldenSets
+      tags: [Vendors]
+      description: Labelled samples drawn from the operation's own queues, used to judge vendors.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: queueId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Golden sets page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeGoldenSet"
+  /v1/response-clocks:
+    get:
+      operationId: listResponseClocks
+      tags: [Clocks]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [running, at_risk, met, breached]
+        - name: clockType
+          in: query
+          schema:
+            type: string
+            enum: [statutory_removal, localisation_sla, accessibility_remediation, client_contract]
+      responses:
+        "200":
+          description: Response clocks page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeResponseClock"
+  /v1/response-clocks/{clockId}/preempt:
+    parameters:
+      - $ref: "#/components/parameters/ClockId"
+    post:
+      operationId: preemptResponseClock
+      tags: [Clocks]
+      description: Promote the underlying item ahead of lower-priority work before breach.
+      security:
+        - BearerAuth: []
+      responses:
+        "202":
+          description: Item promoted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeResponseClock"
+  /v1/queues/{queueId}/benefit:
+    parameters:
+      - $ref: "#/components/parameters/QueueId"
+    get:
+      operationId: getBenefitRecord
+      tags: [Benefits]
+      description: Realised versus promised benefit against the funding business case.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            example: 2026-08
+      responses:
+        "200":
+          description: Benefit record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeBenefitRecord"
+  /v1/governance/queues/{queueId}/automation-approval:
+    parameters:
+      - $ref: "#/components/parameters/QueueId"
+    post:
+      operationId: decideAutomationApproval
+      tags: [Governance]
+      description: >-
+        Approve, refuse, suspend, or revert automation on a queue. Refusal reasons
+        are recorded so an unstable policy definition cannot be automated by
+        operational enthusiasm.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, rationale]
+              properties:
+                decision:
+                  type: string
+                  enum: [approve_pilot, approve_scaled, refuse, suspend, revert]
+                rationale:
+                  type: string
+                refusalReason:
+                  type: string
+                  enum: [unstable_policy_definition, unstable_taxonomy, impact_tier_too_high, no_fallback_vendor, insufficient_evaluation, processing_terms_missing]
+                reviewDueAt:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Governance decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeQueue"
+  /v1/governance/egress-records:
+    get:
+      operationId: listEgressRecords
+      tags: [Governance]
+      description: What content left the boundary, to which vendor, under which terms and territory.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: queueId
+          in: query
+          schema:
+            type: string
+        - name: vendorId
+          in: query
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Egress records page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeEgressRecord"
+  /v1/governance/exposure/{agentId}:
+    parameters:
+      - name: agentId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getExposureLedger
+      tags: [Governance]
+      description: >-
+        Graphic-content handling hours for one agent against the policy cap. Returned
+        only to the agent and to occupational-health roles, never in vendor reporting.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Exposure ledger entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeExposureLedgerEntry"
+        "403":
+          description: Caller is not permitted to read individual exposure data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/roadmap:
+    get:
+      operationId: listRoadmapEntries
+      tags: [Roadmap]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Roadmap entries page, ranked by weighted score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeRoadmapEntry"
+  /v1/roadmap/rescore:
+    post:
+      operationId: rescoreRoadmap
+      tags: [Roadmap]
+      description: >-
+        Re-run the portfolio scorecard on a cadence or on a trigger such as
+        regulatory change, sustained volume movement, or vendor capability change.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trigger]
+              properties:
+                trigger:
+                  type: string
+                  enum: [scheduled, regulatory_change, volume_shift, vendor_capability_change, incident, sponsor_request]
+                note:
+                  type: string
+      responses:
+        "202":
+          description: Re-scoring accepted, change history updated for the sponsor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeRoadmapEntry"
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    QueueId:
+      name: queueId
+      in: path
+      required: true
+      schema:
+        type: string
+    WorkItemId:
+      name: workItemId
+      in: path
+      required: true
+      schema:
+        type: string
+    AppealId:
+      name: appealId
+      in: path
+      required: true
+      schema:
+        type: string
+    VendorId:
+      name: vendorId
+      in: path
+      required: true
+      schema:
+        type: string
+    ClockId:
+      name: clockId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    UnprocessableEntity:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    ResponseMeta:
+      type: object
+      required: [requestId, timestamp]
+      properties:
+        requestId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+          example: USD
+    ImpactTier:
+      type: string
+      description: >-
+        Consequence of a wrong decision in this queue. Illegal content admitted to a
+        platform and a mis-tagged product image do not share a threshold.
+      enum: [critical_illegal, high_safety_policy, moderate_brand_or_accessibility, low_enrichment]
+    TaskType:
+      type: string
+      enum:
+        - policy_moderation
+        - offensive_media_review
+        - metadata_enrichment
+        - catalogue_tagging
+        - localisation_qa
+        - transcreation_review
+        - accessibility_captioning
+        - accessibility_alt_text
+        - rights_clearance
+        - editorial_approval
+    VendorCapability:
+      type: string
+      description: Capability rows from the source vendor landscape
+      enum: [ingest_metadata, ingest_text, moderation_text, moderation_image, moderation_video, tagging_image, tagging_video, custom_training_text, custom_training_image]
+    Queue:
+      type: object
+      required: [id, name, taskType, impactTier, automationStatus]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        taskType:
+          $ref: "#/components/schemas/TaskType"
+        impactTier:
+          $ref: "#/components/schemas/ImpactTier"
+        automationStatus:
+          type: string
+          enum: [not_assessed, blocked, approved_pilot, approved_scaled, suspended, reverted]
+        deploymentMode:
+          type: string
+          description: Deployment choice from the source WHY-WHERE-HOW framework
+          enum: [human_only, human_in_the_loop, machine_final_with_sampling, machine_final]
+        activeVendorId:
+          type: string
+        fallbackVendorId:
+          type: string
+        policyDefinitionId:
+          type: string
+        dailyVolume:
+          type: integer
+        averageHandlingTimeSeconds:
+          type: integer
+        qualityThreshold:
+          type: number
+          format: float
+        territoryRestrictions:
+          type: array
+          items:
+            type: string
+    QueueCreate:
+      type: object
+      required: [name, taskType, impactTier]
+      properties:
+        name:
+          type: string
+        taskType:
+          $ref: "#/components/schemas/TaskType"
+        impactTier:
+          $ref: "#/components/schemas/ImpactTier"
+        policyDefinitionId:
+          type: string
+        dailyVolume:
+          type: integer
+        averageHandlingTimeSeconds:
+          type: integer
+        qualityThreshold:
+          type: number
+          format: float
+        territoryRestrictions:
+          type: array
+          items:
+            type: string
+    PolicyDefinition:
+      type: object
+      required: [id, version, stability]
+      properties:
+        id:
+          type: string
+        version:
+          type: string
+        taxonomyVersion:
+          type: string
+        stability:
+          type: string
+          description: An unstable definition blocks automation approval on the queue
+          enum: [stable, under_revision, unstable]
+        ambiguityNotes:
+          type: string
+        owner:
+          type: string
+        lastReviewedAt:
+          type: string
+          format: date-time
+    QueueScorecard:
+      type: object
+      required: [id, queueId, weightedScore, scoredAt]
+      properties:
+        id:
+          type: string
+        queueId:
+          type: string
+        weightedScore:
+          type: number
+          format: float
+        rank:
+          type: integer
+        capacityScore:
+          type: number
+          format: float
+          description: Current queue load against handling time and quality targets
+        anticipatedDemandScore:
+          type: number
+          format: float
+          description: Forecast volume the queue cannot absorb with current headcount
+        humanDifficultyScore:
+          type: number
+          format: float
+          description: How hard or time-consuming the task is for an agent
+        automationDifficultyScore:
+          type: number
+          format: float
+          description: How hard the task is for off-the-shelf classifiers
+        impactScore:
+          type: number
+          format: float
+        weightings:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+        scoredBy:
+          type: string
+        scoredAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+    QueueScorecardCreate:
+      type: object
+      required: [weightings, capacityScore, anticipatedDemandScore, humanDifficultyScore, automationDifficultyScore, impactScore]
+      properties:
+        weightings:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+        capacityScore:
+          type: number
+          format: float
+        anticipatedDemandScore:
+          type: number
+          format: float
+        humanDifficultyScore:
+          type: number
+          format: float
+        automationDifficultyScore:
+          type: number
+          format: float
+        impactScore:
+          type: number
+          format: float
+        notes:
+          type: string
+    ThresholdPolicy:
+      type: object
+      required: [queueId, machineFinalConfidence]
+      properties:
+        queueId:
+          type: string
+        machineFinalConfidence:
+          type: number
+          format: float
+          description: Confidence at or above which a machine decision stands without a human
+        tierFloorConfidence:
+          type: number
+          format: float
+          description: Minimum permitted by the queue impact tier
+        samplingRate:
+          type: number
+          format: float
+          description: Share of machine-final decisions drawn for calibration re-review
+        escalationRule:
+          type: string
+          enum: [always_human_below_threshold, dual_human_below_threshold, defer_to_fallback_vendor]
+        approvedBy:
+          type: string
+        effectiveFrom:
+          type: string
+          format: date-time
+    WorkItem:
+      type: object
+      required: [id, queueId, state, receivedAt]
+      properties:
+        id:
+          type: string
+        queueId:
+          type: string
+        externalReference:
+          type: string
+        contentType:
+          type: string
+          enum: [text, image, video, audio, asset_bundle]
+        origin:
+          type: string
+          enum: [platform_ingest, user_report, trusted_flagger, regulator_notice, client_pipeline]
+        state:
+          type: string
+          enum: [received, rights_blocked, routed, machine_final, awaiting_human, human_final, appealed, closed]
+        graphicContent:
+          type: boolean
+        territory:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+    WorkItemCreate:
+      type: object
+      required: [queueId, externalReference, contentType]
+      properties:
+        queueId:
+          type: string
+        externalReference:
+          type: string
+        contentType:
+          type: string
+          enum: [text, image, video, audio, asset_bundle]
+        origin:
+          type: string
+          enum: [platform_ingest, user_report, trusted_flagger, regulator_notice, client_pipeline]
+        assetId:
+          type: string
+        territory:
+          type: string
+        clockType:
+          type: string
+          enum: [statutory_removal, localisation_sla, accessibility_remediation, client_contract]
+        clockDueAt:
+          type: string
+          format: date-time
+    RightsRecord:
+      type: object
+      required: [assetId, status]
+      properties:
+        assetId:
+          type: string
+        status:
+          type: string
+          enum: [cleared, expired, unverified, restricted_territory, pending_renewal]
+        licenceReference:
+          type: string
+        licensor:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        permittedTerritories:
+          type: array
+          items:
+            type: string
+        blocksPublication:
+          type: boolean
+    RoutingDecision:
+      type: object
+      required: [workItemId, lane, decidedAt]
+      properties:
+        workItemId:
+          type: string
+        lane:
+          type: string
+          enum: [machine_final, machine_proposes_human_disposes, human_only, rights_blocked]
+        vendorId:
+          type: string
+        vendorConfidence:
+          type: number
+          format: float
+        thresholdApplied:
+          type: number
+          format: float
+        proposedDecision:
+          type: string
+          enum: [approve, remove, restrict, label, tag, escalate, no_action]
+        evidence:
+          type: object
+          additionalProperties:
+            type: string
+        processingTermsId:
+          type: string
+        decidedAt:
+          type: string
+          format: date-time
+    VendorConnector:
+      type: object
+      required: [id, name, capabilities, status]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        vendorClass:
+          type: string
+          enum: [tech_giant, specialist_startup, in_house_build]
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorCapability"
+        status:
+          type: string
+          enum: [candidate, evaluating, live, fallback, suspended, retired]
+        contractedAccuracyFloor:
+          type: number
+          format: float
+        pricePerThousandCalls:
+          $ref: "#/components/schemas/Money"
+        permittedTerritories:
+          type: array
+          items:
+            type: string
+        processingTermsId:
+          type: string
+    VendorConnectorCreate:
+      type: object
+      required: [name, capabilities]
+      properties:
+        name:
+          type: string
+        vendorClass:
+          type: string
+          enum: [tech_giant, specialist_startup, in_house_build]
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorCapability"
+        contractedAccuracyFloor:
+          type: number
+          format: float
+        pricePerThousandCalls:
+          $ref: "#/components/schemas/Money"
+        permittedTerritories:
+          type: array
+          items:
+            type: string
+        processingTermsId:
+          type: string
+    VendorEvaluation:
+      type: object
+      required: [id, vendorId, queueId, mode, status]
+      properties:
+        id:
+          type: string
+        vendorId:
+          type: string
+        queueId:
+          type: string
+        goldenSetId:
+          type: string
+        mode:
+          type: string
+          enum: [golden_set_only, live_shadow, golden_set_and_live_shadow]
+        status:
+          type: string
+          enum: [queued, running, complete, abandoned]
+        agreementWithHumanLabel:
+          type: number
+          format: float
+        falseNegativeRate:
+          type: number
+          format: float
+        falsePositiveRate:
+          type: number
+          format: float
+        residualHumanHandlingSeconds:
+          type: integer
+          description: Human time the vendor leaves behind per hundred items
+        totalCostPerThousandDecisions:
+          $ref: "#/components/schemas/Money"
+        meetsContractedFloor:
+          type: boolean
+        completedAt:
+          type: string
+          format: date-time
+    VendorEvaluationCreate:
+      type: object
+      required: [queueId, mode]
+      properties:
+        queueId:
+          type: string
+        goldenSetId:
+          type: string
+        mode:
+          type: string
+          enum: [golden_set_only, live_shadow, golden_set_and_live_shadow]
+        sampleSize:
+          type: integer
+    GoldenSet:
+      type: object
+      required: [id, queueId, itemCount]
+      properties:
+        id:
+          type: string
+        queueId:
+          type: string
+        itemCount:
+          type: integer
+        labelledBy:
+          type: array
+          items:
+            type: string
+        interAnnotatorAgreement:
+          type: number
+          format: float
+        policyDefinitionVersion:
+          type: string
+        restrictedStore:
+          type: boolean
+          description: True where the set contains harmful material under access logging
+        refreshedAt:
+          type: string
+          format: date-time
+    HumanReview:
+      type: object
+      required: [id, workItemId, reviewerId, decision, decidedAt]
+      properties:
+        id:
+          type: string
+        workItemId:
+          type: string
+        reviewerId:
+          type: string
+        reviewKind:
+          type: string
+          enum: [threshold_escalation, calibration_sample, appeal_adjudication, spot_check]
+        decision:
+          type: string
+          enum: [approve, remove, restrict, label, tag, escalate, no_action]
+        agreedWithMachine:
+          type: boolean
+        defectClass:
+          type: string
+          description: Set where the reviewer judges the classifier systematically wrong
+        handlingTimeSeconds:
+          type: integer
+        decidedAt:
+          type: string
+          format: date-time
+    HumanReviewCreate:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approve, remove, restrict, label, tag, escalate, no_action]
+        reviewKind:
+          type: string
+          enum: [threshold_escalation, calibration_sample, appeal_adjudication, spot_check]
+        agreedWithMachine:
+          type: boolean
+        defectClass:
+          type: string
+        rationale:
+          type: string
+        handlingTimeSeconds:
+          type: integer
+    Appeal:
+      type: object
+      required: [id, workItemId, status]
+      properties:
+        id:
+          type: string
+        workItemId:
+          type: string
+        raisedBy:
+          type: string
+          enum: [end_user, enterprise_client, trusted_flagger, internal]
+        originalDecisionBy:
+          type: string
+          enum: [machine, human]
+        originalReviewerId:
+          type: string
+        assignedReviewerId:
+          type: string
+        status:
+          type: string
+          enum: [pending, upheld, rejected, expired]
+        dueAt:
+          type: string
+          format: date-time
+        rationale:
+          type: string
+    AppealCreate:
+      type: object
+      required: [workItemId, grounds]
+      properties:
+        workItemId:
+          type: string
+        raisedBy:
+          type: string
+          enum: [end_user, enterprise_client, trusted_flagger, internal]
+        grounds:
+          type: string
+        evidence:
+          type: string
+    ResponseClock:
+      type: object
+      required: [id, workItemId, clockType, dueAt, status]
+      properties:
+        id:
+          type: string
+        workItemId:
+          type: string
+        queueId:
+          type: string
+        clockType:
+          type: string
+          enum: [statutory_removal, localisation_sla, accessibility_remediation, client_contract]
+        jurisdiction:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        dueAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [running, at_risk, met, breached]
+        preemptedAt:
+          type: string
+          format: date-time
+    BenefitRecord:
+      type: object
+      required: [queueId, period]
+      properties:
+        queueId:
+          type: string
+        period:
+          type: string
+        businessCaseReference:
+          type: string
+        promisedDeflectionRate:
+          type: number
+          format: float
+        realisedDeflectionRate:
+          type: number
+          format: float
+        promisedCostPerItem:
+          $ref: "#/components/schemas/Money"
+        realisedCostPerItem:
+          $ref: "#/components/schemas/Money"
+        vendorSpend:
+          $ref: "#/components/schemas/Money"
+        residualHumanCost:
+          $ref: "#/components/schemas/Money"
+        qualityAtBaseline:
+          type: number
+          format: float
+        qualityRealised:
+          type: number
+          format: float
+        residualTailQuality:
+          type: number
+          format: float
+          description: Quality on the hard cases left to humans after automation
+        verdict:
+          type: string
+          enum: [on_case, below_case, above_case, not_yet_measurable]
+    ExposureLedgerEntry:
+      type: object
+      required: [agentId, period, graphicHandlingMinutes]
+      properties:
+        agentId:
+          type: string
+        period:
+          type: string
+        graphicHandlingMinutes:
+          type: integer
+        policyCapMinutes:
+          type: integer
+        overCap:
+          type: boolean
+        queuesContributing:
+          type: array
+          items:
+            type: string
+    EgressRecord:
+      type: object
+      required: [id, workItemId, vendorId, sentAt]
+      properties:
+        id:
+          type: string
+        workItemId:
+          type: string
+        queueId:
+          type: string
+        vendorId:
+          type: string
+        processingTermsId:
+          type: string
+        payloadClass:
+          type: string
+          enum: [full_content, derived_features, hash_only, metadata_only]
+        originTerritory:
+          type: string
+        processingTerritory:
+          type: string
+        clientId:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+    RoadmapEntry:
+      type: object
+      required: [queueId, rank, recommendedAction]
+      properties:
+        queueId:
+          type: string
+        rank:
+          type: integer
+        weightedScore:
+          type: number
+          format: float
+        recommendedAction:
+          type: string
+          enum: [automate_now, pilot, stabilise_policy_first, keep_human, revisit_next_cycle]
+        blockingReason:
+          type: string
+        trigger:
+          type: string
+          enum: [scheduled, regulatory_change, volume_shift, vendor_capability_change, incident, sponsor_request]
+        changedFromPreviousRank:
+          type: integer
+        rationale:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+    DataEnvelopeQueue:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Queue"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopePolicyDefinition:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/PolicyDefinition"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeQueueScorecard:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/QueueScorecard"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeThresholdPolicy:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ThresholdPolicy"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeWorkItem:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/WorkItem"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeRightsRecord:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/RightsRecord"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeRoutingDecision:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/RoutingDecision"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeHumanReview:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/HumanReview"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeAppeal:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Appeal"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeVendorConnector:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/VendorConnector"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeVendorEvaluation:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/VendorEvaluation"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeResponseClock:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ResponseClock"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeBenefitRecord:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/BenefitRecord"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeQueue:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Queue"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeWorkItem:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/WorkItem"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeHumanReview:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/HumanReview"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeAppeal:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Appeal"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeVendorConnector:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/VendorConnector"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeVendorEvaluation:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/VendorEvaluation"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeGoldenSet:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/GoldenSet"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeResponseClock:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ResponseClock"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeEgressRecord:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/EgressRecord"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeExposureLedgerEntry:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ExposureLedgerEntry"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeRoadmapEntry:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/RoadmapEntry"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"

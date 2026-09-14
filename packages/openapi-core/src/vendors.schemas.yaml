@@ -1,0 +1,306 @@
+openapi: 3.1.0
+info:
+  title: Vendors domain schemas
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    VendorId:
+      type: string
+      pattern: '^vnd_[0-9A-HJKMNP-TV-Z]{26}$'
+    EvaluationId:
+      type: string
+      pattern: '^vev_[0-9A-HJKMNP-TV-Z]{26}$'
+    GoldenSetId:
+      type: string
+      pattern: '^gld_[0-9A-HJKMNP-TV-Z]{26}$'
+
+    VendorCapability:
+      type: string
+      enum: [ingest_metadata, ingest_text, moderation_text, moderation_image, moderation_video, tagging_image, tagging_video, custom_training_text, custom_training_image]
+
+    VendorConnector:
+      x-dynamodb:
+        domain: VENDORS
+        entityType: VENDOR_CONNECTOR
+        entityTypePk: VENDOR_CONNECTORS
+        pkPattern: entity
+        pkPatternTemplate: "VENDOR_CONNECTOR#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, name, capabilities, status, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/VendorId'
+        name:
+          type: string
+        vendorClass:
+          type: string
+          enum: [tech_giant, specialist_startup, in_house_build]
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorCapability'
+        status:
+          type: string
+          enum: [candidate, evaluating, live, fallback, suspended, retired]
+        contractedAccuracyFloor:
+          type: number
+          format: float
+        pricePerThousandCalls:
+          $ref: ./common/primitives.yaml#/components/schemas/Money
+        permittedTerritories:
+          type: array
+          items:
+            type: string
+        processingTermsId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    VendorConnectorCreate:
+      type: object
+      required: [name, capabilities]
+      properties:
+        name:
+          type: string
+        vendorClass:
+          type: string
+          enum: [tech_giant, specialist_startup, in_house_build]
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorCapability'
+        contractedAccuracyFloor:
+          type: number
+          format: float
+        pricePerThousandCalls:
+          $ref: ./common/primitives.yaml#/components/schemas/Money
+        permittedTerritories:
+          type: array
+          items:
+            type: string
+        processingTermsId:
+          type: string
+
+    VendorEvaluation:
+      x-dynamodb:
+        domain: VENDORS
+        entityType: VENDOR_EVALUATION
+        entityTypePk: VENDOR_EVALUATIONS
+        pkPattern: entity
+        pkPatternTemplate: "VENDOR_EVALUATION#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, vendorId, queueId, mode, status, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/EvaluationId'
+        vendorId:
+          $ref: '#/components/schemas/VendorId'
+        queueId:
+          type: string
+        goldenSetId:
+          type: string
+        mode:
+          type: string
+          enum: [golden_set_only, live_shadow, golden_set_and_live_shadow]
+        status:
+          type: string
+          enum: [queued, running, complete, abandoned]
+        agreementWithHumanLabel:
+          type: number
+          format: float
+        falseNegativeRate:
+          type: number
+          format: float
+        falsePositiveRate:
+          type: number
+          format: float
+        residualHumanHandlingSeconds:
+          type: integer
+        totalCostPerThousandDecisions:
+          $ref: ./common/primitives.yaml#/components/schemas/Money
+        meetsContractedFloor:
+          type: boolean
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    VendorEvaluationCreate:
+      type: object
+      required: [queueId, mode]
+      properties:
+        queueId:
+          type: string
+        goldenSetId:
+          type: string
+        mode:
+          type: string
+          enum: [golden_set_only, live_shadow, golden_set_and_live_shadow]
+        sampleSize:
+          type: integer
+
+    GoldenSet:
+      x-dynamodb:
+        domain: VENDORS
+        entityType: GOLDEN_SET
+        entityTypePk: GOLDEN_SETS
+        pkPattern: entity
+        pkPatternTemplate: "GOLDEN_SET#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, queueId, itemCount, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/GoldenSetId'
+        queueId:
+          type: string
+        itemCount:
+          type: integer
+        labelledBy:
+          type: array
+          items:
+            type: string
+        interAnnotatorAgreement:
+          type: number
+          format: float
+        policyDefinitionVersion:
+          type: string
+        restrictedStore:
+          type: boolean
+        refreshedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    VendorCutoverRequest:
+      type: object
+      required: [targetVendorId, reason]
+      properties:
+        targetVendorId:
+          type: string
+          description: Use the literal value human_only to revert to human-final decisioning
+        reason:
+          type: string
+          enum: [accuracy_drift, cost, coverage_gap, contract_end, incident, planned_migration]
+        rollbackWindowMinutes:
+          type: integer
+          default: 120
+
+    QueueCutoverResult:
+      type: object
+      required: [queueId, activeVendorId, fallbackVendorId]
+      properties:
+        queueId:
+          type: string
+        activeVendorId:
+          type: string
+        fallbackVendorId:
+          type: string
+        rollbackWindowMinutes:
+          type: integer
+
+    VendorConnectorListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorConnector'
+        nextCursor:
+          type: string
+    VendorEvaluationListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorEvaluation'
+        nextCursor:
+          type: string
+    GoldenSetListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GoldenSet'
+        nextCursor:
+          type: string
+
+    VendorConnectorResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/VendorConnector'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    VendorConnectorListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/VendorConnectorListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    VendorEvaluationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/VendorEvaluation'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    VendorEvaluationListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/VendorEvaluationListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    GoldenSetListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/GoldenSetListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    QueueCutoverResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/QueueCutoverResult'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta

@@ -1,0 +1,1323 @@
+import { makeApi, Zodios, type ZodiosOptions } from '@zodios/core';
+import { z } from 'zod';
+
+const registerQueue_Body = z
+  .object({
+    name: z.string(),
+    taskType: z.enum([
+      'policy_moderation',
+      'offensive_media_review',
+      'metadata_enrichment',
+      'catalogue_tagging',
+      'localisation_qa',
+      'transcreation_review',
+      'accessibility_captioning',
+      'accessibility_alt_text',
+      'rights_clearance',
+      'editorial_approval',
+    ]),
+    impactTier: z.enum([
+      'critical_illegal',
+      'high_safety_policy',
+      'moderate_brand_or_accessibility',
+      'low_enrichment',
+    ]),
+    policyDefinitionId: z.string().optional(),
+    dailyVolume: z.number().int().optional(),
+    averageHandlingTimeSeconds: z.number().int().optional(),
+    qualityThreshold: z.number().optional(),
+    territoryRestrictions: z.array(z.string()).optional(),
+  })
+  .passthrough();
+const pinPolicyDefinition_Body = z
+  .object({
+    id: z.string(),
+    version: z.string(),
+    taxonomyVersion: z.string().optional(),
+    stability: z.enum(['stable', 'under_revision', 'unstable']),
+    ambiguityNotes: z.string().optional(),
+    owner: z.string().optional(),
+    lastReviewedAt: z.string().datetime({ offset: true }).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const scoreQueue_Body = z
+  .object({
+    weightings: z.record(z.number()),
+    capacityScore: z.number(),
+    anticipatedDemandScore: z.number(),
+    humanDifficultyScore: z.number(),
+    automationDifficultyScore: z.number(),
+    impactScore: z.number(),
+    notes: z.string().optional(),
+  })
+  .passthrough();
+const setThresholdPolicy_Body = z
+  .object({
+    queueId: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+    machineFinalConfidence: z.number(),
+    tierFloorConfidence: z.number().optional(),
+    samplingRate: z.number().optional(),
+    escalationRule: z
+      .enum([
+        'always_human_below_threshold',
+        'dual_human_below_threshold',
+        'defer_to_fallback_vendor',
+      ])
+      .optional(),
+    approvedBy: z.string().optional(),
+    effectiveFrom: z.string().datetime({ offset: true }).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const decideAutomationApproval_Body = z
+  .object({
+    decision: z.enum([
+      'approve_pilot',
+      'approve_scaled',
+      'refuse',
+      'suspend',
+      'revert',
+    ]),
+    rationale: z.string(),
+    refusalReason: z
+      .enum([
+        'unstable_policy_definition',
+        'unstable_taxonomy',
+        'impact_tier_too_high',
+        'no_fallback_vendor',
+        'insufficient_evaluation',
+        'processing_terms_missing',
+      ])
+      .optional(),
+    reviewDueAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .passthrough();
+const ImpactTier = z.enum([
+  'critical_illegal',
+  'high_safety_policy',
+  'moderate_brand_or_accessibility',
+  'low_enrichment',
+]);
+const AutomationStatus = z.enum([
+  'not_assessed',
+  'blocked',
+  'approved_pilot',
+  'approved_scaled',
+  'suspended',
+  'reverted',
+]);
+const Problem = z
+  .object({
+    type: z.string().url(),
+    title: z.string(),
+    status: z.number().int(),
+    detail: z.string(),
+    instance: z.string().url(),
+    code: z.string(),
+  })
+  .partial()
+  .passthrough();
+const QueueId = z.string();
+const TaskType = z.enum([
+  'policy_moderation',
+  'offensive_media_review',
+  'metadata_enrichment',
+  'catalogue_tagging',
+  'localisation_qa',
+  'transcreation_review',
+  'accessibility_captioning',
+  'accessibility_alt_text',
+  'rights_clearance',
+  'editorial_approval',
+]);
+const Queue = z
+  .object({
+    id: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+    name: z.string(),
+    taskType: z.enum([
+      'policy_moderation',
+      'offensive_media_review',
+      'metadata_enrichment',
+      'catalogue_tagging',
+      'localisation_qa',
+      'transcreation_review',
+      'accessibility_captioning',
+      'accessibility_alt_text',
+      'rights_clearance',
+      'editorial_approval',
+    ]),
+    impactTier: z.enum([
+      'critical_illegal',
+      'high_safety_policy',
+      'moderate_brand_or_accessibility',
+      'low_enrichment',
+    ]),
+    automationStatus: z.enum([
+      'not_assessed',
+      'blocked',
+      'approved_pilot',
+      'approved_scaled',
+      'suspended',
+      'reverted',
+    ]),
+    deploymentMode: z
+      .enum([
+        'human_only',
+        'human_in_the_loop',
+        'machine_final_with_sampling',
+        'machine_final',
+      ])
+      .optional(),
+    activeVendorId: z.string().optional(),
+    fallbackVendorId: z.string().optional(),
+    policyDefinitionId: z.string().optional(),
+    dailyVolume: z.number().int().optional(),
+    averageHandlingTimeSeconds: z.number().int().optional(),
+    qualityThreshold: z.number().optional(),
+    territoryRestrictions: z.array(z.string()).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const QueueListData = z
+  .object({
+    items: z.array(
+      z
+        .object({
+          id: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+          name: z.string(),
+          taskType: z.enum([
+            'policy_moderation',
+            'offensive_media_review',
+            'metadata_enrichment',
+            'catalogue_tagging',
+            'localisation_qa',
+            'transcreation_review',
+            'accessibility_captioning',
+            'accessibility_alt_text',
+            'rights_clearance',
+            'editorial_approval',
+          ]),
+          impactTier: z.enum([
+            'critical_illegal',
+            'high_safety_policy',
+            'moderate_brand_or_accessibility',
+            'low_enrichment',
+          ]),
+          automationStatus: z.enum([
+            'not_assessed',
+            'blocked',
+            'approved_pilot',
+            'approved_scaled',
+            'suspended',
+            'reverted',
+          ]),
+          deploymentMode: z
+            .enum([
+              'human_only',
+              'human_in_the_loop',
+              'machine_final_with_sampling',
+              'machine_final',
+            ])
+            .optional(),
+          activeVendorId: z.string().optional(),
+          fallbackVendorId: z.string().optional(),
+          policyDefinitionId: z.string().optional(),
+          dailyVolume: z.number().int().optional(),
+          averageHandlingTimeSeconds: z.number().int().optional(),
+          qualityThreshold: z.number().optional(),
+          territoryRestrictions: z.array(z.string()).optional(),
+          createdAt: z.string().datetime({ offset: true }),
+          updatedAt: z.string().datetime({ offset: true }),
+        })
+        .passthrough()
+    ),
+    nextCursor: z.string().optional(),
+  })
+  .passthrough();
+const ResponseMeta = z
+  .object({
+    requestId: z.string().uuid(),
+    correlationId: z.string(),
+    generatedAt: z.string().datetime({ offset: true }),
+  })
+  .partial()
+  .passthrough();
+const QueueListResponse = z
+  .object({
+    data: z
+      .object({
+        items: z.array(
+          z
+            .object({
+              id: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+              name: z.string(),
+              taskType: z.enum([
+                'policy_moderation',
+                'offensive_media_review',
+                'metadata_enrichment',
+                'catalogue_tagging',
+                'localisation_qa',
+                'transcreation_review',
+                'accessibility_captioning',
+                'accessibility_alt_text',
+                'rights_clearance',
+                'editorial_approval',
+              ]),
+              impactTier: z.enum([
+                'critical_illegal',
+                'high_safety_policy',
+                'moderate_brand_or_accessibility',
+                'low_enrichment',
+              ]),
+              automationStatus: z.enum([
+                'not_assessed',
+                'blocked',
+                'approved_pilot',
+                'approved_scaled',
+                'suspended',
+                'reverted',
+              ]),
+              deploymentMode: z
+                .enum([
+                  'human_only',
+                  'human_in_the_loop',
+                  'machine_final_with_sampling',
+                  'machine_final',
+                ])
+                .optional(),
+              activeVendorId: z.string().optional(),
+              fallbackVendorId: z.string().optional(),
+              policyDefinitionId: z.string().optional(),
+              dailyVolume: z.number().int().optional(),
+              averageHandlingTimeSeconds: z.number().int().optional(),
+              qualityThreshold: z.number().optional(),
+              territoryRestrictions: z.array(z.string()).optional(),
+              createdAt: z.string().datetime({ offset: true }),
+              updatedAt: z.string().datetime({ offset: true }),
+            })
+            .passthrough()
+        ),
+        nextCursor: z.string().optional(),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const QueueCreate = z
+  .object({
+    name: z.string(),
+    taskType: z.enum([
+      'policy_moderation',
+      'offensive_media_review',
+      'metadata_enrichment',
+      'catalogue_tagging',
+      'localisation_qa',
+      'transcreation_review',
+      'accessibility_captioning',
+      'accessibility_alt_text',
+      'rights_clearance',
+      'editorial_approval',
+    ]),
+    impactTier: z.enum([
+      'critical_illegal',
+      'high_safety_policy',
+      'moderate_brand_or_accessibility',
+      'low_enrichment',
+    ]),
+    policyDefinitionId: z.string().optional(),
+    dailyVolume: z.number().int().optional(),
+    averageHandlingTimeSeconds: z.number().int().optional(),
+    qualityThreshold: z.number().optional(),
+    territoryRestrictions: z.array(z.string()).optional(),
+  })
+  .passthrough();
+const QueueResponse = z
+  .object({
+    data: z
+      .object({
+        id: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+        name: z.string(),
+        taskType: z.enum([
+          'policy_moderation',
+          'offensive_media_review',
+          'metadata_enrichment',
+          'catalogue_tagging',
+          'localisation_qa',
+          'transcreation_review',
+          'accessibility_captioning',
+          'accessibility_alt_text',
+          'rights_clearance',
+          'editorial_approval',
+        ]),
+        impactTier: z.enum([
+          'critical_illegal',
+          'high_safety_policy',
+          'moderate_brand_or_accessibility',
+          'low_enrichment',
+        ]),
+        automationStatus: z.enum([
+          'not_assessed',
+          'blocked',
+          'approved_pilot',
+          'approved_scaled',
+          'suspended',
+          'reverted',
+        ]),
+        deploymentMode: z
+          .enum([
+            'human_only',
+            'human_in_the_loop',
+            'machine_final_with_sampling',
+            'machine_final',
+          ])
+          .optional(),
+        activeVendorId: z.string().optional(),
+        fallbackVendorId: z.string().optional(),
+        policyDefinitionId: z.string().optional(),
+        dailyVolume: z.number().int().optional(),
+        averageHandlingTimeSeconds: z.number().int().optional(),
+        qualityThreshold: z.number().optional(),
+        territoryRestrictions: z.array(z.string()).optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const PolicyDefinition = z
+  .object({
+    id: z.string(),
+    version: z.string(),
+    taxonomyVersion: z.string().optional(),
+    stability: z.enum(['stable', 'under_revision', 'unstable']),
+    ambiguityNotes: z.string().optional(),
+    owner: z.string().optional(),
+    lastReviewedAt: z.string().datetime({ offset: true }).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const PolicyDefinitionResponse = z
+  .object({
+    data: z
+      .object({
+        id: z.string(),
+        version: z.string(),
+        taxonomyVersion: z.string().optional(),
+        stability: z.enum(['stable', 'under_revision', 'unstable']),
+        ambiguityNotes: z.string().optional(),
+        owner: z.string().optional(),
+        lastReviewedAt: z.string().datetime({ offset: true }).optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const QueueScorecard = z
+  .object({
+    id: z.string(),
+    queueId: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+    weightedScore: z.number(),
+    rank: z.number().int().optional(),
+    capacityScore: z.number().optional(),
+    anticipatedDemandScore: z.number().optional(),
+    humanDifficultyScore: z.number().optional(),
+    automationDifficultyScore: z.number().optional(),
+    impactScore: z.number().optional(),
+    weightings: z.record(z.number()).optional(),
+    scoredBy: z.string().optional(),
+    scoredAt: z.string().datetime({ offset: true }),
+    expiresAt: z.string().datetime({ offset: true }).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const QueueScorecardResponse = z
+  .object({
+    data: z
+      .object({
+        id: z.string(),
+        queueId: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+        weightedScore: z.number(),
+        rank: z.number().int().optional(),
+        capacityScore: z.number().optional(),
+        anticipatedDemandScore: z.number().optional(),
+        humanDifficultyScore: z.number().optional(),
+        automationDifficultyScore: z.number().optional(),
+        impactScore: z.number().optional(),
+        weightings: z.record(z.number()).optional(),
+        scoredBy: z.string().optional(),
+        scoredAt: z.string().datetime({ offset: true }),
+        expiresAt: z.string().datetime({ offset: true }).optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const QueueScorecardCreate = z
+  .object({
+    weightings: z.record(z.number()),
+    capacityScore: z.number(),
+    anticipatedDemandScore: z.number(),
+    humanDifficultyScore: z.number(),
+    automationDifficultyScore: z.number(),
+    impactScore: z.number(),
+    notes: z.string().optional(),
+  })
+  .passthrough();
+const ThresholdPolicy = z
+  .object({
+    queueId: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+    machineFinalConfidence: z.number(),
+    tierFloorConfidence: z.number().optional(),
+    samplingRate: z.number().optional(),
+    escalationRule: z
+      .enum([
+        'always_human_below_threshold',
+        'dual_human_below_threshold',
+        'defer_to_fallback_vendor',
+      ])
+      .optional(),
+    approvedBy: z.string().optional(),
+    effectiveFrom: z.string().datetime({ offset: true }).optional(),
+    createdAt: z.string().datetime({ offset: true }),
+    updatedAt: z.string().datetime({ offset: true }),
+  })
+  .passthrough();
+const ThresholdPolicyResponse = z
+  .object({
+    data: z
+      .object({
+        queueId: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+        machineFinalConfidence: z.number(),
+        tierFloorConfidence: z.number().optional(),
+        samplingRate: z.number().optional(),
+        escalationRule: z
+          .enum([
+            'always_human_below_threshold',
+            'dual_human_below_threshold',
+            'defer_to_fallback_vendor',
+          ])
+          .optional(),
+        approvedBy: z.string().optional(),
+        effectiveFrom: z.string().datetime({ offset: true }).optional(),
+        createdAt: z.string().datetime({ offset: true }),
+        updatedAt: z.string().datetime({ offset: true }),
+      })
+      .passthrough(),
+    meta: z
+      .object({
+        requestId: z.string().uuid(),
+        correlationId: z.string(),
+        generatedAt: z.string().datetime({ offset: true }),
+      })
+      .partial()
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+const AutomationApprovalRequest = z
+  .object({
+    decision: z.enum([
+      'approve_pilot',
+      'approve_scaled',
+      'refuse',
+      'suspend',
+      'revert',
+    ]),
+    rationale: z.string(),
+    refusalReason: z
+      .enum([
+        'unstable_policy_definition',
+        'unstable_taxonomy',
+        'impact_tier_too_high',
+        'no_fallback_vendor',
+        'insufficient_evaluation',
+        'processing_terms_missing',
+      ])
+      .optional(),
+    reviewDueAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .passthrough();
+
+export const schemas: any = {
+  registerQueue_Body,
+  pinPolicyDefinition_Body,
+  scoreQueue_Body,
+  setThresholdPolicy_Body,
+  decideAutomationApproval_Body,
+  ImpactTier,
+  AutomationStatus,
+  Problem,
+  QueueId,
+  TaskType,
+  Queue,
+  QueueListData,
+  ResponseMeta,
+  QueueListResponse,
+  QueueCreate,
+  QueueResponse,
+  PolicyDefinition,
+  PolicyDefinitionResponse,
+  QueueScorecard,
+  QueueScorecardResponse,
+  QueueScorecardCreate,
+  ThresholdPolicy,
+  ThresholdPolicyResponse,
+  AutomationApprovalRequest,
+};
+
+const endpoints = makeApi([
+  {
+    method: 'post',
+    path: '/v1/governance/queues/:queueId/automation-approval',
+    alias: 'decideAutomationApproval',
+    description: `Approve, refuse, suspend, or revert automation on a queue. Refusal reasons are recorded so an unstable policy definition cannot be automated by operational enthusiasm.
+`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: decideAutomationApproval_Body,
+      },
+      {
+        name: 'queueId',
+        type: 'Path',
+        schema: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+            name: z.string(),
+            taskType: z.enum([
+              'policy_moderation',
+              'offensive_media_review',
+              'metadata_enrichment',
+              'catalogue_tagging',
+              'localisation_qa',
+              'transcreation_review',
+              'accessibility_captioning',
+              'accessibility_alt_text',
+              'rights_clearance',
+              'editorial_approval',
+            ]),
+            impactTier: z.enum([
+              'critical_illegal',
+              'high_safety_policy',
+              'moderate_brand_or_accessibility',
+              'low_enrichment',
+            ]),
+            automationStatus: z.enum([
+              'not_assessed',
+              'blocked',
+              'approved_pilot',
+              'approved_scaled',
+              'suspended',
+              'reverted',
+            ]),
+            deploymentMode: z
+              .enum([
+                'human_only',
+                'human_in_the_loop',
+                'machine_final_with_sampling',
+                'machine_final',
+              ])
+              .optional(),
+            activeVendorId: z.string().optional(),
+            fallbackVendorId: z.string().optional(),
+            policyDefinitionId: z.string().optional(),
+            dailyVolume: z.number().int().optional(),
+            averageHandlingTimeSeconds: z.number().int().optional(),
+            qualityThreshold: z.number().optional(),
+            territoryRestrictions: z.array(z.string()).optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'get',
+    path: '/v1/queues',
+    alias: 'listQueues',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'cursor',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().gte(1).lte(200).optional().default(50),
+      },
+      {
+        name: 'impactTier',
+        type: 'Query',
+        schema: z
+          .enum([
+            'critical_illegal',
+            'high_safety_policy',
+            'moderate_brand_or_accessibility',
+            'low_enrichment',
+          ])
+          .optional(),
+      },
+      {
+        name: 'automationStatus',
+        type: 'Query',
+        schema: z
+          .enum([
+            'not_assessed',
+            'blocked',
+            'approved_pilot',
+            'approved_scaled',
+            'suspended',
+            'reverted',
+          ])
+          .optional(),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+                  name: z.string(),
+                  taskType: z.enum([
+                    'policy_moderation',
+                    'offensive_media_review',
+                    'metadata_enrichment',
+                    'catalogue_tagging',
+                    'localisation_qa',
+                    'transcreation_review',
+                    'accessibility_captioning',
+                    'accessibility_alt_text',
+                    'rights_clearance',
+                    'editorial_approval',
+                  ]),
+                  impactTier: z.enum([
+                    'critical_illegal',
+                    'high_safety_policy',
+                    'moderate_brand_or_accessibility',
+                    'low_enrichment',
+                  ]),
+                  automationStatus: z.enum([
+                    'not_assessed',
+                    'blocked',
+                    'approved_pilot',
+                    'approved_scaled',
+                    'suspended',
+                    'reverted',
+                  ]),
+                  deploymentMode: z
+                    .enum([
+                      'human_only',
+                      'human_in_the_loop',
+                      'machine_final_with_sampling',
+                      'machine_final',
+                    ])
+                    .optional(),
+                  activeVendorId: z.string().optional(),
+                  fallbackVendorId: z.string().optional(),
+                  policyDefinitionId: z.string().optional(),
+                  dailyVolume: z.number().int().optional(),
+                  averageHandlingTimeSeconds: z.number().int().optional(),
+                  qualityThreshold: z.number().optional(),
+                  territoryRestrictions: z.array(z.string()).optional(),
+                  createdAt: z.string().datetime({ offset: true }),
+                  updatedAt: z.string().datetime({ offset: true }),
+                })
+                .passthrough()
+            ),
+            nextCursor: z.string().optional(),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 401,
+        description: `Missing or invalid API key`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/v1/queues',
+    alias: 'registerQueue',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: registerQueue_Body,
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+            name: z.string(),
+            taskType: z.enum([
+              'policy_moderation',
+              'offensive_media_review',
+              'metadata_enrichment',
+              'catalogue_tagging',
+              'localisation_qa',
+              'transcreation_review',
+              'accessibility_captioning',
+              'accessibility_alt_text',
+              'rights_clearance',
+              'editorial_approval',
+            ]),
+            impactTier: z.enum([
+              'critical_illegal',
+              'high_safety_policy',
+              'moderate_brand_or_accessibility',
+              'low_enrichment',
+            ]),
+            automationStatus: z.enum([
+              'not_assessed',
+              'blocked',
+              'approved_pilot',
+              'approved_scaled',
+              'suspended',
+              'reverted',
+            ]),
+            deploymentMode: z
+              .enum([
+                'human_only',
+                'human_in_the_loop',
+                'machine_final_with_sampling',
+                'machine_final',
+              ])
+              .optional(),
+            activeVendorId: z.string().optional(),
+            fallbackVendorId: z.string().optional(),
+            policyDefinitionId: z.string().optional(),
+            dailyVolume: z.number().int().optional(),
+            averageHandlingTimeSeconds: z.number().int().optional(),
+            qualityThreshold: z.number().optional(),
+            territoryRestrictions: z.array(z.string()).optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 422,
+        description: `Semantically invalid request (e.g. PACK_EMPTY)`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/v1/queues/:queueId',
+    alias: 'getQueue',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'queueId',
+        type: 'Path',
+        schema: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+            name: z.string(),
+            taskType: z.enum([
+              'policy_moderation',
+              'offensive_media_review',
+              'metadata_enrichment',
+              'catalogue_tagging',
+              'localisation_qa',
+              'transcreation_review',
+              'accessibility_captioning',
+              'accessibility_alt_text',
+              'rights_clearance',
+              'editorial_approval',
+            ]),
+            impactTier: z.enum([
+              'critical_illegal',
+              'high_safety_policy',
+              'moderate_brand_or_accessibility',
+              'low_enrichment',
+            ]),
+            automationStatus: z.enum([
+              'not_assessed',
+              'blocked',
+              'approved_pilot',
+              'approved_scaled',
+              'suspended',
+              'reverted',
+            ]),
+            deploymentMode: z
+              .enum([
+                'human_only',
+                'human_in_the_loop',
+                'machine_final_with_sampling',
+                'machine_final',
+              ])
+              .optional(),
+            activeVendorId: z.string().optional(),
+            fallbackVendorId: z.string().optional(),
+            policyDefinitionId: z.string().optional(),
+            dailyVolume: z.number().int().optional(),
+            averageHandlingTimeSeconds: z.number().int().optional(),
+            qualityThreshold: z.number().optional(),
+            territoryRestrictions: z.array(z.string()).optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 404,
+        description: `Resource not found`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'put',
+    path: '/v1/queues/:queueId/policy-definition',
+    alias: 'pinPolicyDefinition',
+    description: `Pin the policy and taxonomy version a queue is scored and automated against. A queue whose definition is marked unstable cannot be approved for automation.
+`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: pinPolicyDefinition_Body,
+      },
+      {
+        name: 'queueId',
+        type: 'Path',
+        schema: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string(),
+            version: z.string(),
+            taxonomyVersion: z.string().optional(),
+            stability: z.enum(['stable', 'under_revision', 'unstable']),
+            ambiguityNotes: z.string().optional(),
+            owner: z.string().optional(),
+            lastReviewedAt: z.string().datetime({ offset: true }).optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 409,
+        description: `Idempotency key reuse with different body, or state conflict`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/v1/queues/:queueId/scorecard',
+    alias: 'getQueueScorecard',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'queueId',
+        type: 'Path',
+        schema: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string(),
+            queueId: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+            weightedScore: z.number(),
+            rank: z.number().int().optional(),
+            capacityScore: z.number().optional(),
+            anticipatedDemandScore: z.number().optional(),
+            humanDifficultyScore: z.number().optional(),
+            automationDifficultyScore: z.number().optional(),
+            impactScore: z.number().optional(),
+            weightings: z.record(z.number()).optional(),
+            scoredBy: z.string().optional(),
+            scoredAt: z.string().datetime({ offset: true }),
+            expiresAt: z.string().datetime({ offset: true }).optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 404,
+        description: `Resource not found`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/v1/queues/:queueId/scorecard',
+    alias: 'scoreQueue',
+    description: `Run a scorecard against agreed weightings. Weightings must be supplied and are recorded with the score so the ranking is reproducible later.
+`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: scoreQueue_Body,
+      },
+      {
+        name: 'queueId',
+        type: 'Path',
+        schema: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+      {
+        name: 'Idempotency-Key',
+        type: 'Header',
+        schema: z.string().min(1).max(128),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            id: z.string(),
+            queueId: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+            weightedScore: z.number(),
+            rank: z.number().int().optional(),
+            capacityScore: z.number().optional(),
+            anticipatedDemandScore: z.number().optional(),
+            humanDifficultyScore: z.number().optional(),
+            automationDifficultyScore: z.number().optional(),
+            impactScore: z.number().optional(),
+            weightings: z.record(z.number()).optional(),
+            scoredBy: z.string().optional(),
+            scoredAt: z.string().datetime({ offset: true }),
+            expiresAt: z.string().datetime({ offset: true }).optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'get',
+    path: '/v1/queues/:queueId/threshold-policy',
+    alias: 'getThresholdPolicy',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'queueId',
+        type: 'Path',
+        schema: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            queueId: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+            machineFinalConfidence: z.number(),
+            tierFloorConfidence: z.number().optional(),
+            samplingRate: z.number().optional(),
+            escalationRule: z
+              .enum([
+                'always_human_below_threshold',
+                'dual_human_below_threshold',
+                'defer_to_fallback_vendor',
+              ])
+              .optional(),
+            approvedBy: z.string().optional(),
+            effectiveFrom: z.string().datetime({ offset: true }).optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+  },
+  {
+    method: 'put',
+    path: '/v1/queues/:queueId/threshold-policy',
+    alias: 'setThresholdPolicy',
+    description: `Loosening a threshold below the floor mandated by the queue impact tier requires an active governance approval and is otherwise refused.
+`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: setThresholdPolicy_Body,
+      },
+      {
+        name: 'queueId',
+        type: 'Path',
+        schema: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+      },
+    ],
+    response: z
+      .object({
+        data: z
+          .object({
+            queueId: z.string().regex(/^que_[0-9A-HJKMNP-TV-Z]{26}$/),
+            machineFinalConfidence: z.number(),
+            tierFloorConfidence: z.number().optional(),
+            samplingRate: z.number().optional(),
+            escalationRule: z
+              .enum([
+                'always_human_below_threshold',
+                'dual_human_below_threshold',
+                'defer_to_fallback_vendor',
+              ])
+              .optional(),
+            approvedBy: z.string().optional(),
+            effectiveFrom: z.string().datetime({ offset: true }).optional(),
+            createdAt: z.string().datetime({ offset: true }),
+            updatedAt: z.string().datetime({ offset: true }),
+          })
+          .passthrough(),
+        meta: z
+          .object({
+            requestId: z.string().uuid(),
+            correlationId: z.string(),
+            generatedAt: z.string().datetime({ offset: true }),
+          })
+          .partial()
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    errors: [
+      {
+        status: 403,
+        description: `Authenticated but not permitted`,
+        schema: z
+          .object({
+            type: z.string().url(),
+            title: z.string(),
+            status: z.number().int(),
+            detail: z.string(),
+            instance: z.string().url(),
+            code: z.string(),
+          })
+          .partial()
+          .passthrough(),
+      },
+    ],
+  },
+]);
+
+export const api: any = new Zodios(
+  'https://api.ddd-codegen-starter.local/v1',
+  endpoints
+);
+
+export function createApiClient(baseUrl: string, options?: ZodiosOptions): any {
+  return new Zodios(baseUrl, endpoints, options);
+}

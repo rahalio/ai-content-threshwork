@@ -1,0 +1,479 @@
+openapi: 3.1.0
+info:
+  title: Routing domain schemas
+  version: 0.1.0
+paths: {}
+components:
+  schemas:
+    WorkItemId:
+      type: string
+      pattern: '^wit_[0-9A-HJKMNP-TV-Z]{26}$'
+    AppealId:
+      type: string
+      pattern: '^apl_[0-9A-HJKMNP-TV-Z]{26}$'
+    ClockId:
+      type: string
+      pattern: '^clk_[0-9A-HJKMNP-TV-Z]{26}$'
+    ReviewId:
+      type: string
+      pattern: '^hrv_[0-9A-HJKMNP-TV-Z]{26}$'
+
+    WorkItemState:
+      type: string
+      enum: [received, rights_blocked, routed, machine_final, awaiting_human, human_final, appealed, closed]
+
+    ContentType:
+      type: string
+      enum: [text, image, video, audio, asset_bundle]
+
+    WorkItemOrigin:
+      type: string
+      enum: [platform_ingest, user_report, trusted_flagger, regulator_notice, client_pipeline]
+
+    DecisionAction:
+      type: string
+      enum: [approve, remove, restrict, label, tag, escalate, no_action]
+
+    ClockType:
+      type: string
+      enum: [statutory_removal, localisation_sla, accessibility_remediation, client_contract]
+
+    WorkItem:
+      x-dynamodb:
+        domain: ROUTING
+        entityType: WORK_ITEM
+        entityTypePk: WORK_ITEMS
+        pkPattern: entity
+        pkPatternTemplate: "WORK_ITEM#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, queueId, state, receivedAt, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/WorkItemId'
+        queueId:
+          type: string
+        externalReference:
+          type: string
+        contentType:
+          $ref: '#/components/schemas/ContentType'
+        origin:
+          $ref: '#/components/schemas/WorkItemOrigin'
+        state:
+          $ref: '#/components/schemas/WorkItemState'
+        graphicContent:
+          type: boolean
+        territory:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WorkItemCreate:
+      type: object
+      required: [queueId, externalReference, contentType]
+      properties:
+        queueId:
+          type: string
+        externalReference:
+          type: string
+        contentType:
+          $ref: '#/components/schemas/ContentType'
+        origin:
+          $ref: '#/components/schemas/WorkItemOrigin'
+        assetId:
+          type: string
+        territory:
+          type: string
+        clockType:
+          $ref: '#/components/schemas/ClockType'
+        clockDueAt:
+          type: string
+          format: date-time
+
+    RightsRecord:
+      x-dynamodb:
+        domain: ROUTING
+        entityType: RIGHTS_RECORD
+        entityTypePk: RIGHTS_RECORDS
+        pkPattern: entity
+        pkPatternTemplate: "RIGHTS_RECORD#${assetId}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [assetId, status, createdAt, updatedAt]
+      properties:
+        assetId:
+          type: string
+        status:
+          type: string
+          enum: [cleared, expired, unverified, restricted_territory, pending_renewal]
+        licenceReference:
+          type: string
+        licensor:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        permittedTerritories:
+          type: array
+          items:
+            type: string
+        blocksPublication:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RoutingDecision:
+      x-dynamodb:
+        domain: ROUTING
+        entityType: ROUTING_DECISION
+        entityTypePk: ROUTING_DECISIONS
+        pkPattern: entity
+        pkPatternTemplate: "ROUTING_DECISION#${workItemId}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [workItemId, lane, decidedAt, createdAt, updatedAt]
+      properties:
+        workItemId:
+          $ref: '#/components/schemas/WorkItemId'
+        lane:
+          type: string
+          enum: [machine_final, machine_proposes_human_disposes, human_only, rights_blocked]
+        vendorId:
+          type: string
+        vendorConfidence:
+          type: number
+          format: float
+        thresholdApplied:
+          type: number
+          format: float
+        proposedDecision:
+          $ref: '#/components/schemas/DecisionAction'
+        evidence:
+          type: object
+          additionalProperties:
+            type: string
+        processingTermsId:
+          type: string
+        decidedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    HumanReview:
+      x-dynamodb:
+        domain: ROUTING
+        entityType: HUMAN_REVIEW
+        entityTypePk: HUMAN_REVIEWS
+        pkPattern: entity
+        pkPatternTemplate: "HUMAN_REVIEW#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, workItemId, reviewerId, decision, decidedAt, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/ReviewId'
+        workItemId:
+          $ref: '#/components/schemas/WorkItemId'
+        reviewerId:
+          type: string
+        reviewKind:
+          type: string
+          enum: [threshold_escalation, calibration_sample, appeal_adjudication, spot_check]
+        decision:
+          $ref: '#/components/schemas/DecisionAction'
+        agreedWithMachine:
+          type: boolean
+        defectClass:
+          type: string
+        handlingTimeSeconds:
+          type: integer
+        decidedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    HumanReviewCreate:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          $ref: '#/components/schemas/DecisionAction'
+        reviewKind:
+          type: string
+          enum: [threshold_escalation, calibration_sample, appeal_adjudication, spot_check]
+        agreedWithMachine:
+          type: boolean
+        defectClass:
+          type: string
+        rationale:
+          type: string
+        handlingTimeSeconds:
+          type: integer
+
+    Appeal:
+      x-dynamodb:
+        domain: ROUTING
+        entityType: APPEAL
+        entityTypePk: APPEALS
+        pkPattern: entity
+        pkPatternTemplate: "APPEAL#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, workItemId, status, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/AppealId'
+        workItemId:
+          $ref: '#/components/schemas/WorkItemId'
+        raisedBy:
+          type: string
+          enum: [end_user, enterprise_client, trusted_flagger, internal]
+        originalDecisionBy:
+          type: string
+          enum: [machine, human]
+        originalReviewerId:
+          type: string
+        assignedReviewerId:
+          type: string
+        status:
+          type: string
+          enum: [pending, upheld, rejected, expired]
+        dueAt:
+          type: string
+          format: date-time
+        rationale:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AppealCreate:
+      type: object
+      required: [workItemId, grounds]
+      properties:
+        workItemId:
+          $ref: '#/components/schemas/WorkItemId'
+        raisedBy:
+          type: string
+          enum: [end_user, enterprise_client, trusted_flagger, internal]
+        grounds:
+          type: string
+        evidence:
+          type: string
+
+    AppealResolveRequest:
+      type: object
+      required: [outcome, rationale]
+      properties:
+        outcome:
+          type: string
+          enum: [upheld, rejected]
+        rationale:
+          type: string
+        feedsCalibrationSet:
+          type: boolean
+          default: true
+
+    ResponseClock:
+      x-dynamodb:
+        domain: ROUTING
+        entityType: RESPONSE_CLOCK
+        entityTypePk: RESPONSE_CLOCKS
+        pkPattern: entity
+        pkPatternTemplate: "RESPONSE_CLOCK#${id}"
+        skPatternTemplate: "METADATA"
+        tableType: core
+        createdAtField: createdAt
+        updatedAtField: updatedAt
+      type: object
+      required: [id, workItemId, clockType, dueAt, status, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/ClockId'
+        workItemId:
+          $ref: '#/components/schemas/WorkItemId'
+        queueId:
+          type: string
+        clockType:
+          $ref: '#/components/schemas/ClockType'
+        jurisdiction:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        dueAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [running, at_risk, met, breached]
+        preemptedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    WorkItemListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkItem'
+        nextCursor:
+          type: string
+    HumanReviewListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HumanReview'
+        nextCursor:
+          type: string
+    AppealListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appeal'
+        nextCursor:
+          type: string
+    ResponseClockListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResponseClock'
+        nextCursor:
+          type: string
+
+    WorkItemResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/WorkItem'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    WorkItemListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/WorkItemListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    RightsRecordResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/RightsRecord'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    RoutingDecisionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/RoutingDecision'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    HumanReviewResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/HumanReview'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    HumanReviewListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/HumanReviewListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    AppealResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Appeal'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    AppealListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/AppealListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    ResponseClockResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ResponseClock'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
+    ResponseClockListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ResponseClockListData'
+        meta:
+          $ref: ./common/envelopes.yaml#/components/schemas/ResponseMeta
