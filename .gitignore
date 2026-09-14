@@ -15,3 +15,11 @@ test-results/
 playwright-report/
 *.log
 .turbo/
+
+# Codegen tooling & generated outputs — do not push
+.codegen/
+codegen/
+**/zero_codegen/
+**/integration-events/generated/
+platform/tests/postman/generated/
+
